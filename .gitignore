@@ -1,0 +1,56 @@
+# Python bytecode and cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Python virtual environments
+.venv/
+venv/
+env/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Node.js dependencies and generated output
+node_modules/
+dist/
+build/
+coverage/
+.npm/
+
+# Frontend tooling caches
+.vite/
+
+# Application logs
+*.log
+logs/
+
+# Local databases and database sidecar files
+*.sqlite3
+*.db
+*.db-journal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# IDE and operating system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Test and coverage artifacts
+htmlcov/
+.coverage
+coverage.xml
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+
+progress.md
