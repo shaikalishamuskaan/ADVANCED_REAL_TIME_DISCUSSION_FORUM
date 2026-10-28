@@ -1,0 +1,26 @@
+Mini Project: Advanced Real-Time Discussion Forum
+
+It should be a  micro service based architecture
+
+
+This project focuses on developing a scalable and interactive discussion forum that allows real-time communication and collaboration among users. Participants will apply advanced concepts to design and implement the system.
+Key Features:
+User Authentication: Secure registration and login using JWT or OAuth2.
+Real-Time Messaging: Enable instant communication with WebSocket technology.
+Threaded Discussions: Support nested comments for organized topic discussions.
+Search Functionality: Implement search filters to quickly locate threads and posts.
+Notifications: Provide real-time updates for new messages, replies, and mentions.
+Role Management: Define user roles such as admin, moderator, and member for permissions.
+
+ 
+1. User Management The system shall allow users to register using an email and password. The system shall allow users to log in using JWT. The system shall issue an access token upon successful login. The system shall allow users to update their profile information (name, avatar, bio). The system shall allow users to reset their password. 
+
+2. Role & Permission Management The system shall support roles: Admin, Moderator, and Member. Admin users shall be able to promote/demote user roles. Members can create/edit/delete only their own posts and comments. Moderators can delete or edit any post or comment. Admins can manage users, roles. 
+
+3. Threads & comments The system shall allow authenticated users to create new discussion threads with a title and description. The system shall display a list of all threads with pagination. The system shall display all comments and nested comments under a specific thread. The system shall support multi‑level nested comments. A user can like a thread or comment only once. List of users who liked the thread (optional) When a user likes a thread, all connected clients should see the updated like count immediately (WebSocket update). The system shall allow users to edit or delete their own posts. Moderators/Admins shall be able to modify or delete any post. 
+
+4. Real‑Time Communication The system shall deliver new posts and comments instantly to all connected clients using WebSockets. The system shall update thread view automatically without page refresh. 
+
+5. Search Functionality Search Threads The system shall allow users to search threads by keywords (title, tags, content). 
+
+6. Notification System The system shall send real-time notifications when: A user receives a reply to their post. A user is mentioned using @username. Required Dashboards: Admin Dashboard: Manage users, roles,. Moderator Dashboard: Tools to monitor, review, and moderate threads, posts, and user activity. Member Dashboard: Simple interface to create threads, post comments, like content, and view notifications.
