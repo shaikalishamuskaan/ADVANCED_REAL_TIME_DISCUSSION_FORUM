@@ -1,9 +1,12 @@
 
 from rest_framework import status
-from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from auth_flow.rate_limits import (
+    RateLimitExceeded,
+    enforce_registration_limit,
+)
 from auth_flow.serializers import RegistrationSerializer
 from auth_flow.services import RegistrationConflict, register_user
 
@@ -15,6 +18,25 @@ class RegisterView(APIView):
     permission_classes = []
 
     def post(self, request):
+        # Use the direct connection IP; do not trust forwarded headers.
+        ip_address = request.META.get("REMOTE_ADDR", "unknown")
+
+        try:
+            enforce_registration_limit(ip_address)
+        except RateLimitExceeded as exc:
+            response = Response(
+                {
+                    "error": {
+                        "code": "rate_limited",
+                        "message": str(exc.detail),
+                        "details": {},
+                    }
+                },
+                status=429,
+            )
+            response["Retry-After"] = str(exc.retry_after)
+            return response
+
         serializer = RegistrationSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -26,13 +48,16 @@ class RegisterView(APIView):
                 display_name=serializer.validated_data["display_name"],
             )
         except RegistrationConflict as exc:
-            raise ValidationError({
-                "error": {
-                    "code": "conflict",
-                    "message": str(exc.detail),
-                    "details": {},
-                }
-            })
+            return Response(
+                {
+                    "error": {
+                        "code": exc.default_code,
+                        "message": str(exc.detail),
+                        "details": {},
+                    }
+                },
+                status=exc.status_code,
+            )
 
         return Response(
             {

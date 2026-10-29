@@ -297,7 +297,7 @@ erDiagram
 
 `author_id` is a plain UUID because users live in `identity_db`. `deleted_at` is the only deletion field. Who deleted an item is recorded in `ACTIVITY_LOG`.
 
-`COMMENT.depth` is 1 to 6. `is_continuation` marks a reply attached one level up at depth 6 (rule in 4.4).
+`COMMENT.depth` is 1 to 3. `is_continuation` marks a reply attached one level up at depth 3 (rule in 4.4).
 
 `like_count` and `comment_count` change only in the same transaction as the like or comment write. `THREAD_LIKE` and `COMMENT_LIKE` use composite primary keys, so one like per user per item is a database guarantee.
 
@@ -794,9 +794,9 @@ Response, 200:
 
 ### 4.4 Comment depth and continuation
 
-Top-level comments have `parent_id` null and depth 1. A reply to a comment at depth `d` gets depth `d + 1` while `d` is less than 6.
+Top-level comments have `parent_id` null and depth 1. A reply to a comment at depth `d` gets depth `d + 1` while `d` is less than 3.
 
-A reply to a depth-6 comment is attached to that comment's parent (depth 5), gets depth 6, and sets `is_continuation` to true. It sits beside its intended parent at the deepest level. The UI shows "Continue this thread" on depth-6 comments that have continuation siblings.
+A reply to a depth-3 comment is attached to that comment's parent (depth 2), gets depth 3, and sets `is_continuation` to true. It sits beside its intended parent at the deepest level. The UI shows "Continue this thread" on depth-3 comments that have continuation siblings.
 
 ### 4.5 Search
 
@@ -1691,7 +1691,7 @@ All values come from the environment. `.env.example` lists every name with a pla
 
 | HLD level | LLD coverage |
 |---|---|
-| Unit | `can_modify` truth table (role by ownership by deleted state). Depth and continuation at depths 1, 5, and 6. Mention parser: email addresses, code spans, more than 10 mentions, unknown names. Username and tag validation. Recovery code HMAC and constant-time compare. ILIKE escaping. Rate-limit script. |
+| Unit | `can_modify` truth table (role by ownership by deleted state). Depth and continuation at depths 1, 2, and 3. Mention parser: email addresses, code spans, more than 10 mentions, unknown names. Username and tag validation. Recovery code HMAC and constant-time compare. ILIKE escaping. Rate-limit script. |
 | API | Every endpoint in section 4 with success, 400, 401, 403, 404, 409, and 429 cases. Disabled user blocked at login, refresh, and writes. Reused refresh token revokes all sessions. Recovery code cannot be reused after reset. Duplicate like returns 200 with unchanged count. Duplicate report returns 409. |
 | Integration | Stream and Pub/Sub publish after each write type. Notify creates exactly one row per recipient on duplicate delivery. Search upserts and deletes match events. Role change invalidates Discussion and Realtime caches. Entries move to `stream:dead` after five failures. |
 | WebSocket | Missing auth closes with 4401. Disabled user closes with 4403. Sixth socket closes with 4429. Subscribe and unsubscribe filter events. Pub/Sub reaches sockets on a second instance. Reconnect triggers a refetch. |

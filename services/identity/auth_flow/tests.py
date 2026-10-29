@@ -21,9 +21,9 @@ class RegistrationTests(TestCase):
             "password": "correct-horse-battery-9",
             "display_name": "Ali Khan",
         }
-
+    @patch("auth_flow.views.enforce_registration_limit",return_value=None,)
     @patch.dict(os.environ, {"RECOVERY_CODE_HMAC_KEY": "test-secret-key"})
-    def test_registration_creates_account_and_returns_recovery_code(self):
+    def test_registration_creates_account_and_returns_recovery_code(self,mock_rate_limit):
         response = self.client.post(
             "/api/auth/register",
             self.payload,
@@ -58,8 +58,8 @@ class RegistrationTests(TestCase):
         ).hexdigest()
         self.assertEqual(stored_hash, expected_hash)
         self.assertNotEqual(stored_hash, recovery_code)
-
-    def test_duplicate_email_is_rejected(self):
+    @patch("auth_flow.views.enforce_registration_limit",return_value=None,)
+    def test_duplicate_email_is_rejected(self,mock_rate_limit):
         first_response = self.client.post(
             "/api/auth/register",
             self.payload,
@@ -77,10 +77,35 @@ class RegistrationTests(TestCase):
             format="json",
         )
 
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.data["error"]["code"], "email_taken")
+        self.assertEqual(User.objects.count(), 1)
+    @patch("auth_flow.views.enforce_registration_limit",return_value=None,)
+    def test_duplicate_username_is_rejected(self,mock_rate_limit):
+        first_response = self.client.post(
+            "/api/auth/register",
+            self.payload,
+            format="json",
+        )
+        self.assertEqual(first_response.status_code, 201)
+
+        duplicate_payload = {
+            **self.payload,
+            "email": "another@example.com",
+            "username": "ALI_K",
+        }
+        response = self.client.post(
+            "/api/auth/register",
+            duplicate_payload,
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.data["error"]["code"], "username_taken")
         self.assertEqual(User.objects.count(), 1)
 
-    def test_invalid_username_is_rejected(self):
+    @patch("auth_flow.views.enforce_registration_limit",return_value=None,)
+    def test_invalid_username_is_rejected(self,mock_rate_limit):
         payload = {
             **self.payload,
             "username": "ab!",
@@ -94,8 +119,8 @@ class RegistrationTests(TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(User.objects.count(), 0)
-
-    def test_missing_display_name_is_rejected(self):
+    @patch("auth_flow.views.enforce_registration_limit",return_value=None,)
+    def test_missing_display_name_is_rejected(self,mock_rate_limit):
         payload = {
             **self.payload,
             "display_name": "",

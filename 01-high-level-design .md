@@ -182,7 +182,7 @@ These decisions shape the data model and the LLD.
 
 **Avatars.** A member sets an avatar by entering an image URL on the profile page. The server validates the format and stores the string. It does not fetch the image; the browser loads it directly. Broken URLs show a placeholder. There is no upload, storage, or image processing in Phase 1.
 
-**Nesting depth.** Comments nest up to 6 levels deep. A reply to a comment at depth 6 is attached as a sibling at depth 6 and marked as a continuation of the same branch. The UI shows a "Continue this thread" link in place of deeper nesting.
+**Nesting depth.** Comments nest up to 3 levels deep. A reply to a comment at depth 3 is attached as a sibling at depth 3 and marked as a continuation of the same branch. The UI shows a "Continue this thread" link in place of deeper nesting.
 
 **Comment pagination.** A thread loads its top-level comments 20 at a time using cursor pagination. Each comment shows up to 3 replies by default, with a "Load more replies" control. Nothing loads the whole tree at once.
 

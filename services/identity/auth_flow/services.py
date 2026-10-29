@@ -16,8 +16,12 @@ from auth_flow.models import RecoveryCode
 
 class RegistrationConflict(APIException):
     status_code = 409
-    default_code = "conflict"
-    default_detail = "An account with this username or email already exists."
+
+    def __init__(self, code, message):
+        self.default_code = code
+        self.default_detail = message
+        super().__init__(detail=message, code=code)
+
 
 
 def generate_recovery_code():
@@ -49,11 +53,20 @@ def register_user(*, username, email, password, display_name):
     normalized_username = username.strip()
     normalized_email = email.strip().lower()
 
-    if User.objects.filter(username_normalized=normalized_username.lower()).exists():
-        raise RegistrationConflict()
+    
+    if User.objects.filter(
+        username_normalized=normalized_username.lower()
+    ).exists():
+        raise RegistrationConflict(
+            "username_taken",
+            "This username is already taken.",
+        )
 
     if User.objects.filter(email=normalized_email).exists():
-        raise RegistrationConflict()
+        raise RegistrationConflict(
+            "email_taken",
+            "This email address is already registered.",
+        )
 
     recovery_code = generate_recovery_code()
 
@@ -78,8 +91,13 @@ def register_user(*, username, email, password, display_name):
             target_id=user.id,
             metadata={},
         )
+    
     except IntegrityError as exc:
-        # Covers duplicate username/email requests arriving concurrently.
-        raise RegistrationConflict() from exc
+        # The database uniqueness constraints also protect concurrent requests.
+        raise RegistrationConflict(
+            "conflict",
+            "An account with this username or email already exists.",
+        ) from exc
+
 
     return user, recovery_code
