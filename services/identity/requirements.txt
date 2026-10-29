@@ -1,0 +1,9 @@
+﻿Django>=5.2,<5.3
+djangorestframework
+psycopg[binary]
+PyJWT
+cryptography
+django-cors-headers
+redis
+python-dotenv
+bcrypt
