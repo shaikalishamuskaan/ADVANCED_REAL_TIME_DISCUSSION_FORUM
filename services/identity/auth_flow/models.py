@@ -1,3 +1,4 @@
+import uuid
 from django.db import models
 
 # Create your models here.
@@ -24,3 +25,28 @@ class RecoveryCode(models.Model):
 
     def __str__(self):
         return f"Recovery code for user {self.user_id}"
+
+
+
+class RefreshToken(models.Model):
+    """Track refresh-token identifiers for rotation and revocation."""
+
+    jti = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        db_column="user_id",
+        related_name="refresh_tokens",
+    )
+    expires_at = models.DateTimeField()
+    revoked_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "refresh_tokens"
+
+    def __str__(self):
+        return f"Refresh token {self.jti} for user {self.user_id}"

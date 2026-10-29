@@ -20,6 +20,57 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 PROJECT_ROOT = BASE_DIR.parent.parent
 load_dotenv(PROJECT_ROOT / ".env")
 
+CORS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv(
+        "CORS_ALLOWED_ORIGINS",
+        "http://localhost:5173",
+    ).split(",")
+    if origin.strip()
+]
+
+# RS256 JWT configuration
+JWT_PRIVATE_KEY_PATH = os.getenv("JWT_PRIVATE_KEY_PATH")
+JWT_PUBLIC_KEY_PATH = os.getenv("JWT_PUBLIC_KEY_PATH")
+JWT_ISSUER = os.getenv("JWT_ISSUER", "identity")
+JWT_AUDIENCE = os.getenv("JWT_AUDIENCE", "forum")
+
+ACCESS_TOKEN_TTL_SECONDS = int(
+    os.getenv("ACCESS_TOKEN_TTL_SECONDS", "900")
+)
+REFRESH_TOKEN_TTL_DAYS = int(
+    os.getenv("REFRESH_TOKEN_TTL_DAYS", "7")
+)
+
+
+if not JWT_PRIVATE_KEY_PATH:
+    raise RuntimeError("JWT_PRIVATE_KEY_PATH is not configured.")
+
+if not JWT_PUBLIC_KEY_PATH:
+    raise RuntimeError("JWT_PUBLIC_KEY_PATH is not configured.")
+
+if ACCESS_TOKEN_TTL_SECONDS <= 0:
+    raise RuntimeError("ACCESS_TOKEN_TTL_SECONDS must be positive.")
+
+if REFRESH_TOKEN_TTL_DAYS <= 0:
+    raise RuntimeError("REFRESH_TOKEN_TTL_DAYS must be positive.")
+
+
+def load_jwt_key(path_setting):
+    """Load a PEM key from a path relative to the repository root."""
+    from pathlib import Path
+
+    key_path = Path(path_setting)
+    if not key_path.is_absolute():
+        key_path = PROJECT_ROOT / key_path
+
+    try:
+        return key_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise RuntimeError(
+            f"Unable to read configured JWT key file: {key_path}"
+        ) from exc
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
