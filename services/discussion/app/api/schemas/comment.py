@@ -57,3 +57,16 @@ class CommentPageResponseSchema(BaseModel):
 class ReplyPageResponseSchema(BaseModel):
     items: list[CommentResponseSchema]
     next_cursor: str | None = None
+
+class CommentCreatedSchema(BaseModel):
+    id: uuid.UUID
+    thread_id: uuid.UUID
+    parent_id: uuid.UUID | None
+    author_id: uuid.UUID
+    depth: int
+    is_continuation: bool
+    body: str
+    like_count: int
+    reply_count: int
+    created_at: datetime
+    updated_at: datetime

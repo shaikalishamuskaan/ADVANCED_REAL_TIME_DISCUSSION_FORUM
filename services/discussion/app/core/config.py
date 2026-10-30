@@ -20,6 +20,7 @@ class Settings(BaseSettings):
 
     JWT_ISSUER: str = "identity"
     JWT_AUDIENCE: str = "forum"
+    JWT_ALGORITHM: str ="RS256"
 
     STATUS_CACHE_TTL_SECONDS: int = 30
 
