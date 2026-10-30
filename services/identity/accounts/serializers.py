@@ -64,3 +64,61 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             })
 
         return attrs
+class UsernameChangeSerializer(serializers.Serializer):
+    username = serializers.RegexField(
+        regex=r"^[A-Za-z0-9_]{3,30}$",
+        max_length=30,
+        min_length=3,
+        error_messages={
+            "invalid": (
+                "Username must contain 3 to 30 letters, "
+                "digits, or underscores."
+            ),
+        },
+    )
+
+    def validate_username(self, value):
+        username = value.strip()
+        normalized = username.lower()
+
+        if User.objects.filter(username_normalized=normalized).exists():
+            raise serializers.ValidationError(
+                "This username is already taken."
+            )
+
+        return username
+
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    current_password = serializers.CharField(
+        write_only=True,
+        trim_whitespace=False,
+    )
+    new_password = serializers.CharField(
+        write_only=True,
+        trim_whitespace=False,
+    )
+
+
+
+class PasswordChangeSerializer(serializers.Serializer):
+    current_password = serializers.CharField(
+        write_only=True,
+        trim_whitespace=False,
+    )
+    new_password = serializers.CharField(
+        write_only=True,
+        trim_whitespace=False,
+    )
+
+    def validate_new_password(self, value):
+        from django.contrib.auth.password_validation import validate_password
+        from django.core.exceptions import ValidationError
+
+        try:
+            validate_password(value, user=self.context.get("user"))
+        except ValidationError as exc:
+            raise serializers.ValidationError(list(exc.messages)) from exc
+
+        return value

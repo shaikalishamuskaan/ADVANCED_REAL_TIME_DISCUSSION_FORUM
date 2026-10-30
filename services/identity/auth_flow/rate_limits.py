@@ -182,3 +182,45 @@ def enforce_password_reset_limits(username, ip_address, *, client=None, now=None
         raise
     except (redis.RedisError, RuntimeError) as exc:
         raise RateLimitDependencyUnavailable() from exc
+
+
+def enforce_password_change_limit(user_id, *, client=None):
+    """Allow at most five password-change attempts per user in 15 minutes."""
+    key = f"rate-limit:password-change:user:{user_id}"
+
+    try:
+        redis_client = client or get_redis_client()
+        count = redis_client.incr(key)
+
+        if count == 1:
+            redis_client.expire(key, 15 * 60)
+
+        if count > 5:
+            ttl = redis_client.ttl(key)
+            raise LoginRateLimitExceeded(ttl if ttl > 0 else 15 * 60)
+
+    except LoginRateLimitExceeded:
+        raise
+    except (redis.RedisError, RuntimeError) as exc:
+        raise RateLimitDependencyUnavailable() from exc
+
+
+def enforce_recovery_code_limit(user_id, *, client=None):
+    """Allow at most five recovery-code regenerations per hour per user."""
+    key = f"rate-limit:recovery-code:user:{user_id}"
+
+    try:
+        redis_client = client or get_redis_client()
+        count = redis_client.incr(key)
+
+        if count == 1:
+            redis_client.expire(key, 60 * 60)
+
+        if count > 5:
+            ttl = redis_client.ttl(key)
+            raise LoginRateLimitExceeded(ttl if ttl > 0 else 60 * 60)
+
+    except LoginRateLimitExceeded:
+        raise
+    except (redis.RedisError, RuntimeError) as exc:
+        raise RateLimitDependencyUnavailable() from exc

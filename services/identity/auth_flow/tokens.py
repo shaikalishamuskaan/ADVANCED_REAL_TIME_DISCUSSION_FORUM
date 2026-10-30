@@ -6,14 +6,16 @@ import jwt
 from django.conf import settings
 from config.settings import load_jwt_key
 
-def create_access_token(user):
-    """Create a short-lived RS256 access token for an active user."""
+
+def create_access_token(user, session_id):
+    """Create an access token associated with a refresh-token session."""
     now = datetime.now(timezone.utc)
 
     payload = {
         "sub": str(user.id),
         "username": user.username,
         "role": user.role,
+        "sid": str(session_id),
         "iss": settings.JWT_ISSUER,
         "aud": settings.JWT_AUDIENCE,
         "iat": now,
@@ -25,6 +27,7 @@ def create_access_token(user):
     private_key = load_jwt_key(settings.JWT_PRIVATE_KEY_PATH)
 
     return jwt.encode(payload, private_key, algorithm="RS256")
+
 
 
 def create_refresh_token(user):

@@ -54,3 +54,6 @@ coverage.xml
 *.swp
 
 progress.md
+
+# Local RSA keys - never commit private keys
+/services/identity/keys/

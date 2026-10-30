@@ -11,7 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 import os
 from pathlib import Path
-
+import json
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -71,6 +71,39 @@ def load_jwt_key(path_setting):
             f"Unable to read configured JWT key file: {key_path}"
         ) from exc
 
+
+# Internal service-to-service authentication
+try:
+    SERVICE_API_KEYS = json.loads(
+        os.getenv("SERVICE_API_KEYS", "{}")
+    )
+except json.JSONDecodeError as exc:
+    raise RuntimeError(
+        "SERVICE_API_KEYS must contain valid JSON."
+    ) from exc
+
+if not isinstance(SERVICE_API_KEYS, dict):
+    raise RuntimeError("SERVICE_API_KEYS must be a JSON object.")
+
+REQUIRED_INTERNAL_SERVICES = {
+    "discussion",
+    "notify",
+    "realtime",
+}
+
+if set(SERVICE_API_KEYS.keys()) != REQUIRED_INTERNAL_SERVICES:
+    raise RuntimeError(
+        "SERVICE_API_KEYS must contain exactly: "
+        "discussion, notify, and realtime."
+    )
+
+if any(
+    not isinstance(key, str) or not key.strip()
+    for key in SERVICE_API_KEYS.values()
+):
+    raise RuntimeError(
+        "Every SERVICE_API_KEYS value must be a non-empty string."
+    )
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 

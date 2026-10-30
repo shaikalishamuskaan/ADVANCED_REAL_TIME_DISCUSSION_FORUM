@@ -180,11 +180,16 @@ def authenticate_user(email, password):
     return user
 
 
+
 @transaction.atomic
 def create_login_tokens(user):
     """Issue tokens and record the successful login."""
     refresh_token = create_refresh_token(user)
-    access_token = create_access_token(user)
+
+    refresh_payload = decode_refresh_token(refresh_token)
+    session_id = refresh_payload["jti"]
+
+    access_token = create_access_token(user, session_id)
 
     ActivityLog.objects.create(
         actor_id=user.id,
@@ -251,9 +256,14 @@ def rotate_refresh_token(raw_token):
             token_record.revoked_at = timezone.now()
             token_record.save(update_fields=["revoked_at"])
 
+                        
             new_refresh_token = create_refresh_token(user)
-            new_access_token = create_access_token(user)
+            new_refresh_payload = decode_refresh_token(new_refresh_token)
+            session_id = new_refresh_payload["jti"]
+
+            new_access_token = create_access_token(user, session_id)
             result = (new_access_token, new_refresh_token)
+
 
     # Raise only after the reuse-detection transaction has committed.
     if reuse_detected:
@@ -356,6 +366,83 @@ def reset_password(*, username, recovery_code, new_password):
     ActivityLog.objects.create(
         actor_id=user.id,
         action="password_reset",
+        target_type="user",
+        target_id=user.id,
+        metadata={},
+    )
+
+    return replacement_code
+
+
+@transaction.atomic
+def change_user_password(
+    *,
+    user,
+    current_password,
+    new_password,
+    current_session_id,
+):
+    """Change password and revoke every other refresh-token session."""
+    user = User.objects.select_for_update().get(pk=user.pk)
+
+    if not user.check_password(current_password):
+        raise InvalidCredentials()
+
+    try:
+        validate_password(new_password, user=user)
+    except DjangoValidationError as exc:
+        raise RegistrationConflict(
+            "validation_error",
+            "The new password does not meet the password requirements.",
+        ) from exc
+
+    current_session = RefreshToken.objects.filter(
+        jti=current_session_id,
+        user=user,
+        revoked_at__isnull=True,
+        expires_at__gt=timezone.now(),
+    ).first()
+
+    if current_session is None:
+        raise InvalidCredentials()
+
+    user.set_password(new_password)
+    user.save(update_fields=["password"])
+
+    RefreshToken.objects.filter(
+        user=user,
+        revoked_at__isnull=True,
+    ).exclude(
+        jti=current_session.jti,
+    ).update(revoked_at=timezone.now())
+
+    ActivityLog.objects.create(
+        actor_id=user.id,
+        action="password_changed",
+        target_type="user",
+        target_id=user.id,
+        metadata={},
+    )
+
+
+@transaction.atomic
+def regenerate_recovery_code(*, user):
+    """Replace a user's recovery code and return it once."""
+    user = User.objects.select_for_update().get(pk=user.pk)
+
+    stored_code = (
+        RecoveryCode.objects.select_for_update()
+        .get(user=user)
+    )
+
+    replacement_code = generate_recovery_code()
+    stored_code.code_hash = hash_recovery_code(replacement_code)
+    stored_code.expires_at = None
+    stored_code.save(update_fields=["code_hash", "expires_at"])
+
+    ActivityLog.objects.create(
+        actor_id=user.id,
+        action="recovery_code_regenerated",
         target_type="user",
         target_id=user.id,
         metadata={},

@@ -297,7 +297,7 @@ erDiagram
 
 `author_id` is a plain UUID because users live in `identity_db`. `deleted_at` is the only deletion field. Who deleted an item is recorded in `ACTIVITY_LOG`.
 
-`COMMENT.depth` is 1 to 3. `is_continuation` marks a reply attached one level up at depth 3 (rule in 4.4).
+`COMMENT.depth` is 1 to 6. `is_continuation` marks a reply attached one level up at depth 6 (rule in 4.4).
 
 `like_count` and `comment_count` change only in the same transaction as the like or comment write. `THREAD_LIKE` and `COMMENT_LIKE` use composite primary keys, so one like per user per item is a database guarantee.
 
@@ -601,13 +601,15 @@ Access token claims:
   "sub": "4c1e8a52-9d3b-4f7a-8e21-6b0c5a7d9e01",
   "username": "ali_k",
   "role": "member",
+  "sid": "1b0e6e0e-2d7c-4f3e-9d43-1c7a2f9a8b10",
   "iss": "identity",
   "aud": "forum",
   "iat": 1793100000,
-  "exp": 1793100900,
-  "jti": "1b0e6e0e-2d7c-4f3e-9d43-1c7a2f9a8b10"
+  "exp": 1793100900
 }
 ```
+
+`sid` is the `jti` of the refresh-token session that issued this access token. Identity validates that the corresponding `REFRESH_TOKEN` row belongs to `sub`, is not revoked, and has not expired. This allows password changes to revoke other sessions while keeping the current session valid. Access tokens without `sid` are rejected by the Identity authentication class.
 
 ### 4.3 Discussion endpoints
 
@@ -794,7 +796,7 @@ Response, 200:
 
 ### 4.4 Comment depth and continuation
 
-Top-level comments have `parent_id` null and depth 1. A reply to a comment at depth `d` gets depth `d + 1` while `d` is less than 3.
+Top-level comments have `parent_id` null and depth 1. A reply to a comment at depth `d` gets depth `d + 1` while `d` is less than 6.
 
 A reply to a depth-3 comment is attached to that comment's parent (depth 2), gets depth 3, and sets `is_continuation` to true. It sits beside its intended parent at the deepest level. The UI shows "Continue this thread" on depth-3 comments that have continuation siblings.
 
@@ -904,7 +906,7 @@ On reconnect the client refetches the active queries. There is no replay.
 
 ## 5. Service Flows
 
-### 5.1 Login
+### 5.2 Login
 
 ```mermaid
 flowchart TD
@@ -924,7 +926,7 @@ flowchart TD
 
 Unknown emails also increment the failure counter, so timing and rate limits do not reveal which emails exist. Both cases return the same `invalid_credentials` response.
 
-### 5.2 Refresh with reuse detection
+### 5.3 Refresh with reuse detection
 
 ```mermaid
 flowchart TD
@@ -944,7 +946,7 @@ flowchart TD
 
 Reuse of a revoked token means someone has a copy of an old token. Revoking every session for that user forces a new login.
 
-### 5.3 Password reset with recovery code
+### 5.4 Password reset with recovery code
 
 ```mermaid
 flowchart TD
@@ -966,7 +968,29 @@ flowchart TD
 
 For an unknown username, the code comparison still runs against a dummy hash, so timing does not reveal whether the username exists.
 
-### 5.4 Discussion write pipeline
+### 5.5 Password change with an authenticated session
+
+`POST /api/users/me/password` requires a valid access token and is limited to five attempts per 15 minutes per user. The request contains the current and new passwords:
+
+```json
+{
+  "current_password": "current-long-passphrase-42",
+  "new_password": "a-different-long-passphrase-57"
+}
+```
+
+The service verifies the current password and validates the new password against the configured password policy. In one database transaction it updates the password, revokes all other active refresh-token sessions for the user, and records `password_changed` in `ACTIVITY_LOG`. The refresh session identified by the access token's `sid` remains active. If the current session cannot be found as active and unexpired, the request is rejected. A successful response is:
+
+```json
+{
+  "message": "Password changed successfully."
+}
+```
+
+The refresh cookie remains scoped to `Path=/api/auth`; the refresh token is not sent to the password-change endpoint. The `sid` claim identifies the current refresh session without exposing the refresh token to application request data.
+
+
+### 5.6 Discussion write pipeline
 
 Every write endpoint runs these steps in order.
 
@@ -995,7 +1019,7 @@ flowchart TD
 
 The response is returned after commit. Delivery to Redis happens later, through the relay in section 2.6. A Redis outage cannot cause a write to fail or an event to be lost.
 
-### 5.5 Policy check
+### 5.7 Policy check
 
 One function answers whether an actor may change a resource. Edits and deletes both use it.
 
@@ -1013,7 +1037,7 @@ def can_modify(actor, resource) -> bool:
 
 Owners can change their own content. Moderators and admins can change any thread or comment, including admin-authored content, as the HLD requires.
 
-### 5.6 Thread list with cache
+### 5.8 Thread list with cache
 
 ```mermaid
 flowchart TD
@@ -1031,7 +1055,7 @@ Any thread create, update, delete, or like change increments `ds:threads:ver`. O
 
 If Identity is unavailable, the page is returned with `author.username` set to null, and the frontend shows "unavailable user". The page is not failed.
 
-### 5.7 Like toggle
+### 5.9 Like toggle
 
 ```mermaid
 flowchart TD
@@ -1056,7 +1080,7 @@ flowchart TD
 
 The counter changes only when the insert or delete affected a row, so repeated PUTs and DELETEs are safe.
 
-### 5.8 Notify consumer
+### 5.10 Notify consumer
 
 ```mermaid
 flowchart TD
@@ -1085,7 +1109,7 @@ The mention parser matches `@` followed by a valid username, when the `@` is at 
 
 For `thread.created`, the author is excluded from mentions and no reply notification is created.
 
-### 5.9 Search index sync
+### 5.11 Search index sync
 
 ```mermaid
 flowchart TD
@@ -1108,7 +1132,7 @@ flowchart TD
 
 For `user.username_changed` on `stream:identity`, Search updates `author_username` on documents where `author_id` matches.
 
-### 5.10 Realtime WebSocket session
+### 5.12 Realtime WebSocket session
 
 ```mermaid
 flowchart TD
@@ -1691,7 +1715,7 @@ All values come from the environment. `.env.example` lists every name with a pla
 
 | HLD level | LLD coverage |
 |---|---|
-| Unit | `can_modify` truth table (role by ownership by deleted state). Depth and continuation at depths 1, 2, and 3. Mention parser: email addresses, code spans, more than 10 mentions, unknown names. Username and tag validation. Recovery code HMAC and constant-time compare. ILIKE escaping. Rate-limit script. |
+| Unit | `can_modify` truth table (role by ownership by deleted state). Depth and continuation at depths 1, 5, and 6. Mention parser: email addresses, code spans, more than 10 mentions, unknown names. Username and tag validation. Recovery code HMAC and constant-time compare. ILIKE escaping. Rate-limit script. |
 | API | Every endpoint in section 4 with success, 400, 401, 403, 404, 409, and 429 cases. Disabled user blocked at login, refresh, and writes. Reused refresh token revokes all sessions. Recovery code cannot be reused after reset. Duplicate like returns 200 with unchanged count. Duplicate report returns 409. |
 | Integration | Stream and Pub/Sub publish after each write type. Notify creates exactly one row per recipient on duplicate delivery. Search upserts and deletes match events. Role change invalidates Discussion and Realtime caches. Entries move to `stream:dead` after five failures. |
 | WebSocket | Missing auth closes with 4401. Disabled user closes with 4403. Sixth socket closes with 4429. Subscribe and unsubscribe filter events. Pub/Sub reaches sockets on a second instance. Reconnect triggers a refetch. |
@@ -1709,8 +1733,8 @@ The rules come from HLD section 6. This table shows how each rule is implemented
 |---|---|---|
 | Passwords hashed with bcrypt | Django `PASSWORD_HASHERS` lists `BCryptSHA256PasswordHasher` first. Older hashes are upgraded at next login. | Identity |
 | Recovery codes hashed with HMAC-SHA256 | HMAC with `RECOVERY_CODE_HMAC_KEY`, compared in constant time | Identity |
-| Access token signed with RS256, 15 minutes | Claims `iss` (`JWT_ISSUER`), `aud` (`JWT_AUDIENCE`), and `exp` set to `iat + 900`. Only Identity signs. | Identity |
-| Token validation | Verify with `algorithms=["RS256"]` (rejects `none` and `HS256`), then check signature, `iss`, `aud`, and `exp`. Failures return 401. | Every service |
+| Access token signed with RS256, 15 minutes | Claims include `sub`, `username`, `role`, `sid`, `iss` (`JWT_ISSUER`), `aud` (`JWT_AUDIENCE`), `iat`, and `exp` set to `iat + 900`. `sid` identifies the issuing refresh-token session. Only Identity signs. | Identity |
+| Token validation | Verify with `algorithms=["RS256"]` (rejects `none` and `HS256`), then check signature, `iss`, `aud`, `iat`, and `exp`. Identity also requires `sid` and checks that its refresh-token row is active, unrevoked, unexpired, and belongs to `sub`. Failures return 401. | Every service verifies JWT claims; Identity additionally validates session state |
 | Refresh cookie | `HttpOnly; Secure; SameSite=Strict; Path=/api/auth`. `Origin` checked on refresh. Revoked on logout, reset, and reuse. | Identity |
 | Keys and secrets | Private key mounted only into Identity. Public key read-only elsewhere. Values come from environment or secret files. `.env` is git-ignored. `.env.example` holds placeholders only. | Deployment |
 | Role and status freshness | JWT role used for ordinary reads and writes. Moderation and admin actions check Identity status, cached for 30 seconds. `user.role_changed` and `user.disabled` events clear the cache. No role claim is trusted beyond 15 minutes. | Discussion, Notify and Realtime |

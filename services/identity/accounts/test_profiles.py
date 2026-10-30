@@ -3,7 +3,7 @@ from django.test import TestCase
 from rest_framework.test import APIClient
 
 from accounts.models import User
-from auth_flow.tokens import create_access_token
+from auth_flow.tokens import create_access_token, create_refresh_token, decode_refresh_token
 
 
 class ProfileAPITests(TestCase):
@@ -15,7 +15,9 @@ class ProfileAPITests(TestCase):
             display_name="Alice",
         )
         self.client = APIClient()
-        self.access_token = create_access_token(self.user)
+        refresh_token = create_refresh_token(self.user)
+        session_id = decode_refresh_token(refresh_token)["jti"]
+        self.access_token = create_access_token(self.user, session_id)
         self.client.credentials(
             HTTP_AUTHORIZATION=f"Bearer {self.access_token}"
         )
