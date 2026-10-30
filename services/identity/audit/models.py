@@ -43,3 +43,20 @@ class Outbox(models.Model):
     class Meta:
         db_table = "outbox"
         ordering = ["created_at", "id"]
+
+
+class ProcessedEvent(models.Model):
+    event_id = models.UUIDField()
+    consumer = models.CharField(max_length=100)
+
+    class Meta:
+        db_table = "processed_events"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["event_id", "consumer"],
+                name="unique_processed_event_consumer",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.event_id} ({self.consumer})"

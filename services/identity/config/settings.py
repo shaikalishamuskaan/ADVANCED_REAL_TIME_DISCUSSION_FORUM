@@ -233,3 +233,36 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Identity Outbox Relay configuration
+REDIS_URL = os.getenv(
+    "REDIS_URL",
+    "redis://localhost:6379/0",
+)
+
+OUTBOX_RELAY_INTERVAL_MS = int(
+    os.getenv("OUTBOX_RELAY_INTERVAL_MS", "200")
+)
+
+OUTBOX_BATCH_SIZE = int(
+    os.getenv("OUTBOX_BATCH_SIZE", "100")
+)
+
+OUTBOX_RETENTION_DAYS = int(
+    os.getenv("OUTBOX_RETENTION_DAYS", "7")
+)
+
+if OUTBOX_RELAY_INTERVAL_MS <= 0:
+    raise RuntimeError(
+        "OUTBOX_RELAY_INTERVAL_MS must be positive."
+    )
+
+if OUTBOX_BATCH_SIZE <= 0:
+    raise RuntimeError(
+        "OUTBOX_BATCH_SIZE must be positive."
+    )
+
+if OUTBOX_RETENTION_DAYS <= 0:
+    raise RuntimeError(
+        "OUTBOX_RETENTION_DAYS must be positive."
+    )
