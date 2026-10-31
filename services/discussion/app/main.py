@@ -11,6 +11,8 @@ from app.api.routers.thread_edits import router as thread_edits_router
 from app.api.routers.thread_deletions import (
     router as thread_deletions_router,
 )
+from app.api.routers.thread_likes import router as thread_likes_router
+from app.api.routers.comment_likes import router as comment_likes_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -47,3 +49,5 @@ app.include_router(thread_queries_router)
 app.include_router(thread_details_router)
 app.include_router(thread_edits_router)
 app.include_router(thread_deletions_router)
+app.include_router(thread_likes_router)
+app.include_router(comment_likes_router)
