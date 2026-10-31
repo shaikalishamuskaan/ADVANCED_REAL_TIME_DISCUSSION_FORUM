@@ -7,6 +7,7 @@ from app.core.redis import get_redis_client
 from app.api.routers.threads import router as threads_router
 from app.api.routers.thread_queries import router as thread_queries_router
 from app.api.routers.thread_details import router as thread_details_router
+from app.api.routers.thread_edits import router as thread_edits_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -41,3 +42,4 @@ app.include_router(comments_router)
 app.include_router(threads_router)
 app.include_router(thread_queries_router)
 app.include_router(thread_details_router)
+app.include_router(thread_edits_router)
