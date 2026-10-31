@@ -2,8 +2,9 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api.routers.comments import router as comments_router
 from app.core.redis import get_redis_client
+
+from app.api.routers.comments import router as comments_router
 from app.api.routers.threads import router as threads_router
 from app.api.routers.thread_queries import router as thread_queries_router
 from app.api.routers.thread_details import router as thread_details_router
@@ -14,7 +15,11 @@ from app.api.routers.thread_deletions import (
 from app.api.routers.thread_likes import router as thread_likes_router
 from app.api.routers.comment_likes import router as comment_likes_router
 from app.api.routers.comment_edits import router as comment_edits_router
-from app.api.routers.comment_deletions import router as comment_deletions_router
+from app.api.routers.comment_deletions import (
+    router as comment_deletions_router,
+)
+from app.api.routers.reports import router as reports_router
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -55,3 +60,4 @@ app.include_router(thread_likes_router)
 app.include_router(comment_likes_router)
 app.include_router(comment_edits_router)
 app.include_router(comment_deletions_router)
+app.include_router(reports_router)
