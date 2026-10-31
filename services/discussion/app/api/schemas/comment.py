@@ -62,11 +62,14 @@ class CommentCreatedSchema(BaseModel):
     id: uuid.UUID
     thread_id: uuid.UUID
     parent_id: uuid.UUID | None
-    author_id: uuid.UUID
     depth: int
     is_continuation: bool
+    author: AuthorSchema
     body: str
+    mentions: list[MentionSchema] = Field(default_factory=list)
     like_count: int
+    liked_by_me: bool
     reply_count: int
     created_at: datetime
     updated_at: datetime
+    deleted: bool = False

@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api.routers.comments import router as comments_router
+#from app.api.routers.comments import router as comments_router
 from app.core.redis import get_redis_client
 
 
@@ -35,4 +35,4 @@ async def health_check():
     }
 
 
-app.include_router(comments_router)
+#app.include_router(comments_router)

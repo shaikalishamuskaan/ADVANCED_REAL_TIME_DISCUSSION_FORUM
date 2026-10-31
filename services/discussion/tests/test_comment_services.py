@@ -54,7 +54,11 @@ async def test_create_top_level_comment():
     thread_id = uuid4()
     author_id = uuid4()
 
-    thread = SimpleNamespace(id=thread_id, deleted_at=None)
+    thread = SimpleNamespace(
+    id=thread_id,
+    author_id=uuid4(),
+    deleted_at=None,
+)
 
     db = FakeDatabase(thread)
 
@@ -74,17 +78,39 @@ async def test_create_top_level_comment():
     event = db.added[1]
     assert event.event_type == "comment.created"
 
+    event = db.added[1]
+
+    assert event.event_type == "comment.created"
+    assert event.payload["type"] == "comment.created"
+    assert event.payload["version"] == 1
+    assert event.payload["producer"] == "discussion"
+
+    assert event.payload["event_id"] == str(event.id)
+    assert event.payload["event_id"] != str(comment.id)
+
+    assert event.payload["payload"]["comment_id"] == str(comment.id)
+    assert event.payload["payload"]["author_id"] == str(author_id)
+    assert event.payload["payload"]["thread_author_id"] == str(
+        thread.author_id
+    )
+    assert event.payload["payload"]["parent_id"] is None
+
 
 @pytest.mark.asyncio
 async def test_create_reply():
     thread_id = uuid4()
     author_id = uuid4()
 
-    thread = SimpleNamespace(id=thread_id, deleted_at=None)
+    thread = SimpleNamespace(
+    id=thread_id,
+    author_id=uuid4(),
+    deleted_at=None,
+    )
 
     parent = SimpleNamespace(
         id=uuid4(),
         thread_id=thread_id,
+        author_id=uuid4(),
         depth=1,
         parent_id=None,
         deleted_at=None,
@@ -104,6 +130,16 @@ async def test_create_reply():
     assert comment.depth == 2
     assert comment.is_continuation is False
     assert db.committed is True
+
+    event = db.added[1]
+
+    assert event.payload["payload"]["parent_id"] == str(parent.id)
+    assert event.payload["payload"]["parent_author_id"] == str(
+        parent.author_id
+    )
+    assert event.payload["payload"]["thread_author_id"] == str(
+        thread.author_id
+    )
 
 
 @pytest.mark.asyncio
@@ -125,8 +161,11 @@ async def test_thread_not_found():
 async def test_parent_not_found():
     thread_id = uuid4()
 
-    thread = SimpleNamespace(id=thread_id, deleted_at=None)
-
+    thread = SimpleNamespace(
+    id=thread_id,
+    author_id=uuid4(),
+    deleted_at=None,
+    )
     db = FakeDatabase(thread=thread, parent=None)
 
     with pytest.raises(ValueError, match="Parent comment not found"):
