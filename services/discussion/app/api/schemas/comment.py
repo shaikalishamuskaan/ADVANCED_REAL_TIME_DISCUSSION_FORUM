@@ -10,7 +10,9 @@ class CommentCreateSchema(BaseModel):
     body: str = Field(max_length=5000)
     parent_id: uuid.UUID | None = None
 
-
+class CommentUpdateSchema(BaseModel):
+    body: str = Field(min_length=1, max_length=5000)
+    
 class CommentResponseSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
