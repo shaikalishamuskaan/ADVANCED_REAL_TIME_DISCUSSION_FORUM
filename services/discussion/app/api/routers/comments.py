@@ -16,7 +16,16 @@ from app.core.database import get_db
 from app.core.redis import get_redis
 from app.core.security import AuthenticatedUser
 from app.services.comment_service import create_comment
-
+from app.api.schemas.comment import (
+    CommentCreateSchema,
+    CommentCreatedSchema,
+    CommentPageResponseSchema,
+    ReplyPageResponseSchema,
+)
+from app.services.comment_query_service import (
+    get_comment_replies,
+    get_thread_comments,
+)
 
 router = APIRouter(
     prefix="/api/forum",
@@ -123,3 +132,94 @@ async def create_thread_comment(
         updated_at=comment.updated_at,
         deleted=comment.deleted_at is not None,
     )
+
+@router.get(
+    "/threads/{thread_id}/comments",
+    response_model=CommentPageResponseSchema,
+)
+async def list_thread_comments(
+    thread_id: UUID,
+    current_user: Annotated[
+        AuthenticatedUser,
+        Depends(write_access("comment_list", 120)),
+    ],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    redis: Annotated[Redis, Depends(get_redis)],
+    cursor: str | None = None,
+    limit: int = 20,
+):
+    try:
+        result = await get_thread_comments(
+            db=db,
+            thread_id=thread_id,
+            user_id=current_user.user_id,
+            role=current_user.role,
+            redis=redis,
+            cursor=cursor,
+            limit=limit,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        )
+
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": {
+                    "code": "not_found",
+                    "message": "Thread not found.",
+                    "details": {},
+                }
+            },
+        )
+
+    return result
+
+
+@router.get(
+    "/comments/{comment_id}/replies",
+    response_model=ReplyPageResponseSchema,
+)
+async def list_comment_replies(
+    comment_id: UUID,
+    current_user: Annotated[
+        AuthenticatedUser,
+        Depends(write_access("comment_replies", 120)),
+    ],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    redis: Annotated[Redis, Depends(get_redis)],
+    cursor: str | None = None,
+    limit: int = 20,
+):
+    try:
+        result = await get_comment_replies(
+            db=db,
+            comment_id=comment_id,
+            user_id=current_user.user_id,
+            role=current_user.role,
+            redis=redis,
+            cursor=cursor,
+            limit=limit,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        )
+
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": {
+                    "code": "not_found",
+                    "message": "Comment not found.",
+                    "details": {},
+                }
+            },
+        )
+
+    return result

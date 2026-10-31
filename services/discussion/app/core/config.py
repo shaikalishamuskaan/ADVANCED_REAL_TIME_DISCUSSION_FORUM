@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     OUTBOX_BATCH_SIZE: int = 100
     OUTBOX_RETENTION_DAYS: int = 7
 
+    SEARCH_SERVICE_KEY: str = ""
+
     model_config = SettingsConfigDict(
         env_file=SERVICE_ROOT / ".env",
         env_file_encoding="utf-8",

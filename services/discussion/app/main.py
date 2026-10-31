@@ -20,6 +20,8 @@ from app.api.routers.comment_deletions import (
 )
 from app.api.routers.reports import router as reports_router
 
+from app.api.routers.internal_export import router as internal_export_router
+from app.api.routers.admin_tags import router as admin_tags_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -61,3 +63,5 @@ app.include_router(comment_likes_router)
 app.include_router(comment_edits_router)
 app.include_router(comment_deletions_router)
 app.include_router(reports_router)
+app.include_router(internal_export_router)
+app.include_router(admin_tags_router)
