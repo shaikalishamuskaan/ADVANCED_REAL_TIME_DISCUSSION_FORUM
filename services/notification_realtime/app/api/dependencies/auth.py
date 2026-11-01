@@ -28,11 +28,15 @@ async def get_current_user(
     if credentials is None or credentials.scheme.lower() != "bearer":
         raise HTTPException(status_code=401, detail="Unauthenticated")
 
+    return verify_access_token(credentials.credentials)
+
+
+def verify_access_token(token: str) -> dict:
     settings = get_settings()
 
     try:
         payload = jwt.decode(
-            credentials.credentials,
+            token,
             get_public_key(),
             algorithms=[settings.JWT_ALGORITHM],
             issuer=settings.JWT_ISSUER,
@@ -42,7 +46,7 @@ async def get_current_user(
 
         user_id = UUID(payload["sub"])
 
-    except (jwt.PyJWTError, ValueError, KeyError, OSError):
+    except (jwt.PyJWTError, ValueError, TypeError, KeyError, OSError):
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
     return {"id": user_id}

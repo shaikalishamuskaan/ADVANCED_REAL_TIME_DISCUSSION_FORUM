@@ -5,6 +5,7 @@ from collections import defaultdict
 from uuid import UUID
 
 from fastapi import WebSocket
+from starlette.websockets import WebSocketState
 
 from app.core.config import get_settings
 
@@ -21,6 +22,7 @@ class ConnectionManager:
 
         # WebSocket -> authenticated user ID
         self.socket_users: dict[WebSocket, UUID] = {}
+        self.socket_closed: dict[WebSocket, asyncio.Event] = {}
 
         self.lock = asyncio.Lock()
 
@@ -34,10 +36,12 @@ class ConnectionManager:
             if len(connections) >= settings.WS_MAX_SOCKETS_PER_USER:
                 return False
 
-            await websocket.accept()
+            if websocket.application_state == WebSocketState.CONNECTING:
+                await websocket.accept()
 
             connections.add(websocket)
             self.socket_users[websocket] = user_id
+            self.socket_closed[websocket] = asyncio.Event()
 
             # Every authenticated socket joins these two rooms.
             self.rooms["ws:global"].add(websocket)
@@ -51,30 +55,35 @@ class ConnectionManager:
         thread_id: UUID,
     ):
         """Subscribe an authenticated socket to a thread."""
-        if websocket not in self.socket_users:
-            return
-
         channel = f"ws:thread:{thread_id}"
 
         async with self.lock:
-            self.rooms[channel].add(websocket)
+            if websocket in self.socket_users:
+                self.rooms[channel].add(websocket)
 
     async def unsubscribe_thread(
         self,
         websocket: WebSocket,
         thread_id: UUID,
-    ):
+    ) -> bool:
         channel = f"ws:thread:{thread_id}"
 
         async with self.lock:
-            self.rooms[channel].discard(websocket)
+            sockets = self.rooms.get(channel)
+            if not sockets or websocket not in sockets:
+                return False
+            sockets.remove(websocket)
 
-            if not self.rooms[channel]:
+            if not sockets:
                 self.rooms.pop(channel, None)
+            return True
 
     async def disconnect(self, websocket: WebSocket):
         """Remove a socket from every room and its user's connection set."""
         async with self.lock:
+            closed = self.socket_closed.pop(websocket, None)
+            if closed is not None:
+                closed.set()
             user_id = self.socket_users.pop(websocket, None)
 
             if user_id is not None:
@@ -96,6 +105,25 @@ class ConnectionManager:
 
             for channel in empty_rooms:
                 self.rooms.pop(channel, None)
+
+    async def disconnect_user(self, user_id: UUID):
+        """Close this instance's sockets for a disabled account."""
+        async with self.lock:
+            sockets = list(self.user_connections.get(user_id, set()))
+
+        async def close_socket(websocket):
+            try:
+                await websocket.close(code=4403, reason="account_disabled")
+            finally:
+                await self.disconnect(websocket)
+
+        results = await asyncio.gather(
+            *(close_socket(websocket) for websocket in sockets),
+            return_exceptions=True,
+        )
+        for result in results:
+            if isinstance(result, Exception):
+                logger.warning("Disabled socket close failed: %s", result)
 
     async def publish_to_room(self, channel: str, message: dict):
         """Send a Redis Pub/Sub message to all sockets in the matching room."""

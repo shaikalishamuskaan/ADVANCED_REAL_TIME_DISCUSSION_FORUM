@@ -28,25 +28,27 @@ def _get_field(data: dict, name: str):
     return data.get(name, data.get(name.encode()))
 
 
-async def ensure_consumer_group(redis):
+async def ensure_consumer_group(redis, stream_name=STREAM_NAME, group_name=GROUP_NAME):
     try:
         await redis.xgroup_create(
-            name=STREAM_NAME,
-            groupname=GROUP_NAME,
+            name=stream_name,
+            groupname=group_name,
             id="0",
             mkstream=True,
         )
-        logger.info("Created Redis consumer group: %s", GROUP_NAME)
+        logger.info("Created Redis consumer group: %s", group_name)
 
     except ResponseError as exc:
         if "BUSYGROUP" not in str(exc):
             raise
 
 
-async def get_delivery_count(redis, message_id: str) -> int:
+async def get_delivery_count(
+    redis, message_id: str, stream_name=STREAM_NAME, group_name=GROUP_NAME,
+) -> int:
     pending = await redis.xpending_range(
-        STREAM_NAME,
-        GROUP_NAME,
+        stream_name,
+        group_name,
         min=message_id,
         max=message_id,
         count=1,
@@ -64,13 +66,15 @@ async def send_to_dead_letter(
     fields: dict,
     error: Exception,
     attempts: int,
+    stream_name=STREAM_NAME,
+    group_name=GROUP_NAME,
 ):
     envelope = _get_field(fields, "envelope")
 
     await redis.xadd(
         DEAD_STREAM,
         {
-            "source_stream": STREAM_NAME,
+            "source_stream": stream_name,
             "source_message_id": message_id,
             "envelope": envelope or "",
             "error": str(error)[:1000],
@@ -78,7 +82,7 @@ async def send_to_dead_letter(
         },
     )
 
-    await redis.xack(STREAM_NAME, GROUP_NAME, message_id)
+    await redis.xack(stream_name, group_name, message_id)
 
     logger.error(
         "Moved message %s to dead-letter stream after %s attempts",

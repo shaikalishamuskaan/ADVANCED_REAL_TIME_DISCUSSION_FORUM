@@ -28,3 +28,13 @@ async def resolve_usernames(usernames: list[str]) -> dict[str, dict]:
         user["username"].lower(): user
         for user in users
     }
+
+async def fetch_user_status(user_id: str) -> dict:
+    settings = get_settings()
+    async with httpx.AsyncClient(timeout=3.0) as client:
+        response = await client.get(
+            f"{settings.IDENTITY_BASE_URL}/internal/users/{user_id}/status",
+            headers={"X-Service-Key": settings.IDENTITY_SERVICE_KEY},
+        )
+        response.raise_for_status()
+        return response.json()
