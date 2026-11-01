@@ -4,6 +4,7 @@ from sqlalchemy import and_, literal, or_, select, union_all
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.cursor import decode_cursor, encode_cursor
+from app.clients.identity import fetch_user_profiles
 from app.models.comment import Comment
 from app.models.tag import Tag
 from app.models.thread import Thread
@@ -99,6 +100,15 @@ async def export_for_search(
         for thread_id, tag_name in tag_result.all():
             tags_by_thread[thread_id].append(tag_name)
 
+    author_ids = sorted({str(row["author_id"]) for row in rows})
+    try:
+        profiles = await fetch_user_profiles(author_ids) if author_ids else []
+        usernames = {str(profile["id"]): profile["username"] for profile in profiles}
+    except (ValueError, KeyError, TypeError) as exc:
+        raise RuntimeError("Invalid Identity author profiles for export") from exc
+    if any(not isinstance(usernames.get(author_id), str) or not usernames[author_id] for author_id in author_ids):
+        raise RuntimeError("Unable to retrieve export author usernames from Identity")
+
     items = []
 
     for row in rows:
@@ -107,6 +117,7 @@ async def export_for_search(
                 "type": "thread",
                 "id": row["record_id"],
                 "author_id": row["author_id"],
+                "author_username": usernames[str(row["author_id"])],
                 "title": row["title"],
                 "description": row["description"],
                 "tags": tags_by_thread[row["thread_id"]],
@@ -123,6 +134,7 @@ async def export_for_search(
                 "thread_title": row["title"],
                 "parent_id": row["parent_id"],
                 "author_id": row["author_id"],
+                "author_username": usernames[str(row["author_id"])],
                 "body": row["body"],
                 "created_at": row["created_at"],
                 "updated_at": row["updated_at"],

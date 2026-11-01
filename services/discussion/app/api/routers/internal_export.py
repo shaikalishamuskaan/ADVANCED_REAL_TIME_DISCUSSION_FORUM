@@ -40,3 +40,12 @@ async def export_for_search_endpoint(
                 }
             },
         ) from exc
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"error": {
+                "code": "dependency_unavailable",
+                "message": "Author profiles are unavailable for export.",
+                "details": {},
+            }},
+        ) from exc

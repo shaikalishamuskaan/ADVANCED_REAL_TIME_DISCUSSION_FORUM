@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     JWT_ISSUER: str = "identity"
     JWT_AUDIENCE: str = "forum"
     JWT_ALGORITHM: str = "RS256"
+    SEARCH_SERVICE_KEY: str = ""
 
     model_config = SettingsConfigDict(
         env_file=SERVICE_ROOT / ".env",
