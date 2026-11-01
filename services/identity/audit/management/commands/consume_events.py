@@ -3,6 +3,7 @@ import logging
 import socket
 import time
 import uuid
+from datetime import datetime
 
 import redis
 
@@ -28,6 +29,13 @@ CONSUMER_NAME = f"{socket.gethostname()}-{uuid.uuid4().hex[:8]}"
 PENDING_IDLE_TIME_MS = 60_000
 READ_COUNT = 10
 BLOCK_TIME_MS = 5_000
+
+# These valid events share our stream but are owned by other consumers.
+IGNORED_EVENT_TYPES = frozenset({
+    "thread.created", "thread.updated", "thread.deleted",
+    "comment.created", "comment.updated", "comment.deleted",
+    "report.created", "like.changed",
+})
 
 
 def process_event(envelope):
@@ -115,7 +123,19 @@ class AuditEventConsumer:
         if not raw_envelope:
             raise ValueError("Redis message does not contain an envelope.")
 
-        return json.loads(raw_envelope)
+        envelope = json.loads(raw_envelope)
+        if not isinstance(envelope, dict):
+            raise ValueError("Event envelope must be an object.")
+        uuid.UUID(envelope["event_id"])
+        if envelope.get("version") != 1 or envelope.get("producer") != "discussion":
+            raise ValueError("Unsupported Discussion envelope version or producer.")
+        timestamp = envelope["occurred_at"]
+        if not isinstance(timestamp, str):
+            raise ValueError("Event timestamp must be a string.")
+        occurred_at = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        if occurred_at.tzinfo is None or not isinstance(envelope.get("payload"), dict):
+            raise ValueError("Event requires a timezone-aware timestamp and object payload.")
+        return envelope
 
     def acknowledge(self, message_id):
         self.redis_client.xack(
@@ -126,6 +146,13 @@ class AuditEventConsumer:
 
     def handle_message(self, message_id, fields):
         envelope = self.decode_message(fields)
+
+        if envelope.get("type") in IGNORED_EVENT_TYPES:
+            # XACK affects only the audit group's pending list. Search and
+            # Notify still receive and acknowledge their own copies.
+            self.acknowledge(message_id)
+            logger.debug("Acknowledged non-audit event %s.", envelope["event_id"])
+            return
 
         # The database transaction must finish before Redis is acknowledged.
         process_event(envelope)

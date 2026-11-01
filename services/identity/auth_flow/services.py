@@ -112,48 +112,12 @@ def register_user(*, username, email, password, display_name):
     return user, recovery_code
 
 
-class InvalidCredentials(APIException):
-    status_code = 401
-    default_code = "invalid_credentials"
-    default_detail = "Invalid email or password."
 
 
-class AccountDisabled(APIException):
-    status_code = 403
-    default_code = "account_disabled"
-    default_detail = "This account is disabled."
 
 
-@transaction.atomic
-def authenticate_user(email, password):
-    """Validate credentials and issue tokens for an active user."""
-    user = User.objects.filter(email=email.strip().lower()).first()
-
-    # Use the same response for unknown emails and incorrect passwords.
-    if user is None or not user.check_password(password):
-        return None
-
-    if user.status != "active":
-        raise AccountDisabled()
-
-    return user
 
 
-@transaction.atomic
-def create_login_tokens(user):
-    """Create persisted refresh-token state and an access token."""
-    refresh_token = create_refresh_token(user)
-    access_token = create_access_token(user)
-
-    ActivityLog.objects.create(
-        actor_id=user.id,
-        action="login",
-        target_type="user",
-        target_id=user.id,
-        metadata={},
-    )
-
-    return access_token, refresh_token
 
 class InvalidCredentials(APIException):
     status_code = 401

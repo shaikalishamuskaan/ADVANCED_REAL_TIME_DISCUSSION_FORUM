@@ -133,7 +133,7 @@ def issue_admin_recovery_code(*, actor, user):
 
 
 # Only forum-related actions will be visible to moderators.
-# Add actual action names here when the Discussion service implements them.
+# Keep legacy names for stored rows and include Discussion's emitted actions.
 MODERATOR_FORUM_ACTIONS = {
     "thread_created",
     "thread_updated",
@@ -148,6 +148,24 @@ MODERATOR_FORUM_ACTIONS = {
     "report_created",
     "report_resolved",
     "report_dismissed",
+    "thread.created",
+    "thread.updated",
+    "thread.deleted",
+    "comment.created",
+    "comment.updated",
+    "comment.deleted",
+    "thread_edited_by_moderator",
+    "thread_edited_by_admin",
+    "thread_deleted_by_moderator",
+    "thread_deleted_by_admin",
+    "comment_edited_by_moderator",
+    "comment_edited_by_admin",
+    "comment_deleted_by_moderator",
+    "comment_deleted_by_admin",
+    "report_resolved_by_moderator",
+    "report_resolved_by_admin",
+    "report_dismissed_by_moderator",
+    "report_dismissed_by_admin",
 }
 
 

@@ -80,6 +80,44 @@ class AdminActivityLogTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["items"], [])
 
+    def test_moderator_sees_actual_forum_actions_from_both_privileged_roles(self):
+        actions = {
+            f"{action}_by_{role}"
+            for action in ("thread_edited", "thread_deleted", "comment_edited",
+                           "comment_deleted", "report_resolved", "report_dismissed")
+            for role in ("moderator", "admin")
+        } | {"comment.created", "comment.deleted", "thread_updated"}
+        for action in actions:
+            ActivityLog.objects.create(actor_id=self.admin.id, action=action,
+                                       target_type=action.split('_')[0].split('.')[0],
+                                       target_id=uuid.uuid4(), metadata={})
+        self.authenticate(self.moderator)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual({item["action"] for item in response.data["items"]}, actions)
+
+    def test_actual_moderation_action_filter_returns_same_record_for_both_roles(self):
+        activity = ActivityLog.objects.create(actor_id=self.moderator.id,
+            action="report_resolved_by_moderator", target_type="report",
+            target_id=uuid.uuid4(), metadata={})
+        for user in (self.admin, self.moderator):
+            with self.subTest(role=user.role):
+                self.authenticate(user)
+                response = self.client.get(self.url, {"action": activity.action,
+                    "actor_id": str(self.moderator.id), "target_type": "report"})
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual([item["id"] for item in response.data["items"]], [str(activity.id)])
+
+    def test_moderator_filters_cannot_expose_account_activity(self):
+        self.authenticate(self.moderator)
+        for filters in ({"action": "login"}, {"action": "password_changed"},
+                        {"action": "role_changed"}, {"target_type": "user"},
+                        {"actor_id": str(self.admin.id)}):
+            with self.subTest(filters=filters):
+                response = self.client.get(self.url, filters)
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.data["items"], [])
+
     def test_member_cannot_view_activity_log(self):
         self.authenticate(self.member)
 

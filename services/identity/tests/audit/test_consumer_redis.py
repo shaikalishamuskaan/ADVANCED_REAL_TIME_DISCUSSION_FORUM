@@ -1,3 +1,4 @@
+import json
 from unittest.mock import Mock, patch
 
 from django.test import SimpleTestCase
@@ -142,3 +143,36 @@ class AuditEventConsumerRedisTests(SimpleTestCase):
         count = self.consumer.reclaim_pending_messages()
 
         self.assertEqual(count, 0)
+
+    @patch("audit.management.commands.consume_events.process_event")
+    def test_known_non_audit_events_are_acknowledged_without_database_processing(self, process):
+        from audit.management.commands.consume_events import IGNORED_EVENT_TYPES
+        for event_type in IGNORED_EVENT_TYPES:
+            with self.subTest(event_type=event_type):
+                self.consumer.redis_client.reset_mock()
+                envelope = dict(self.envelope, type=event_type)
+                self.consumer.handle_message("123-0", {"envelope": json.dumps(envelope)})
+                self.consumer.redis_client.xack.assert_called_once_with(DISCUSSION_STREAM, CONSUMER_GROUP, "123-0")
+        process.assert_not_called()
+
+    def test_malformed_and_unknown_events_remain_pending(self):
+        invalid = [[], dict(self.envelope, event_id="invalid"),
+                   dict(self.envelope, version=2), dict(self.envelope, producer="unknown"),
+                   dict(self.envelope, occurred_at="invalid"), dict(self.envelope, payload=[]),
+                   dict(self.envelope, type="unknown")]
+        for envelope in invalid:
+            with self.subTest(envelope=envelope):
+                self.consumer.redis_client.reset_mock()
+                with self.assertRaises((ValueError, KeyError, TypeError)):
+                    self.consumer.handle_message("123-0", {"envelope": json.dumps(envelope)})
+                self.consumer.redis_client.xack.assert_not_called()
+
+    @patch("audit.management.commands.consume_events.process_event")
+    def test_reclaimed_thread_event_does_not_block_following_audit_event(self, process):
+        self.consumer.redis_client.xautoclaim.return_value = ("0-0", [
+            ("123-0", {"envelope": json.dumps(dict(self.envelope, type="thread.created"))}),
+            ("124-0", self.fields),
+        ], [])
+        self.assertEqual(self.consumer.reclaim_pending_messages(), 2)
+        process.assert_called_once_with(self.envelope)
+        self.assertEqual(self.consumer.redis_client.xack.call_count, 2)
