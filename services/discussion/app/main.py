@@ -1,8 +1,10 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
 from app.core.redis import get_redis_client
+from app.outbox.relay import run_outbox_relay
 
 from app.api.routers.comments import router as comments_router
 from app.api.routers.threads import router as threads_router
@@ -30,10 +32,13 @@ async def lifespan(app: FastAPI):
     # Check Redis connectivity when the service starts.
     await redis_client.ping()
 
-    yield
-
-    # Close Redis connections when the service stops.
-    await redis_client.aclose()
+    relay = asyncio.create_task(run_outbox_relay())
+    try:
+        yield
+    finally:
+        relay.cancel()
+        await asyncio.gather(relay, return_exceptions=True)
+        await redis_client.aclose()
 
 
 app = FastAPI(
