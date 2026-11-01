@@ -24,6 +24,7 @@ coverage/
 
 # Frontend tooling caches
 .vite/
+*.tsbuildinfo
 
 # Application logs
 *.log
