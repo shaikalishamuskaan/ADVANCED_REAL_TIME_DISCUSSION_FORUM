@@ -1,7 +1,5 @@
-import json
 import uuid
 
-from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -42,16 +40,15 @@ async def process_event(
         else None
     )
 
-    # Check whether this event was already processed.
-    existing = await session.get(
-        ProcessedEvent,
-        {
-            "event_id": event_id,
-            "consumer": CONSUMER_NAME,
-        },
+    # Claim the event in this transaction. Concurrent duplicates wait for the
+    # winner to commit (or roll back), then skip without repeating external calls.
+    claim = await session.execute(
+        insert(ProcessedEvent)
+        .values(event_id=event_id, consumer=CONSUMER_NAME)
+        .on_conflict_do_nothing(index_elements=["event_id", "consumer"])
+        .returning(ProcessedEvent.event_id)
     )
-
-    if existing:
+    if claim.scalar_one_or_none() is None:
         return
 
     body = (
@@ -62,7 +59,7 @@ async def process_event(
 
     # Resolve mentioned usernames through Identity.
     usernames = extract_mentions(body)
-    resolved_users = await resolve_usernames(usernames)
+    resolved_users = await resolve_usernames(usernames) if usernames else {}
 
     # Map recipient ID -> notification type.
     recipients: dict[uuid.UUID, str] = {}
@@ -138,12 +135,5 @@ async def process_event(
                     },
                 )
             )
-
-    session.add(
-        ProcessedEvent(
-            event_id=event_id,
-            consumer=CONSUMER_NAME,
-        )
-    )
 
     await session.flush()

@@ -208,11 +208,11 @@ async def test_lifespan_starts_and_stops_all_workers(monkeypatch):
 
     monkeypatch.setattr(main, 'get_redis_client', lambda: redis)
     monkeypatch.setattr(main, 'close_redis_client', close_redis)
-    for name in ['consume_forever', 'listen_to_redis', 'consume_identity_forever']:
+    for name in ['consume_forever', 'listen_to_redis', 'consume_identity_forever', 'run_outbox_relay', 'run_cleanup_forever']:
         monkeypatch.setattr(main, name, make_worker(name))
     async with main.lifespan(main.app):
         await asyncio.sleep(0)
-        assert len(started) == 3
+        assert len(started) == 5
         redis.ping.assert_awaited_once()
     assert stopped == started
     close_redis.assert_awaited_once()

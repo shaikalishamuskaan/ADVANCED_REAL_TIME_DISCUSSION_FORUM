@@ -1,6 +1,7 @@
 import httpx
 
 from app.core.config import get_settings
+from app.schemas.notification import NotificationActor
 
 
 async def get_user_profiles(user_ids: list[str]) -> dict[str, dict]:
@@ -20,7 +21,9 @@ async def get_user_profiles(user_ids: list[str]) -> dict[str, dict]:
             )
             response.raise_for_status()
 
-            profile = response.json()
-            profiles[str(profile["id"])] = profile
+            profile = NotificationActor.model_validate(response.json())
+            if str(profile.id) != user_id:
+                raise ValueError("Identity returned an unexpected user")
+            profiles[str(profile.id)] = profile.model_dump(mode="json")
 
     return profiles

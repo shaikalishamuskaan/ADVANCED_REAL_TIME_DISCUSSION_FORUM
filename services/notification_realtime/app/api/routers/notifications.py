@@ -2,6 +2,7 @@ import base64
 from datetime import datetime, timezone
 from uuid import UUID
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,20 +30,26 @@ def encode_cursor(created_at: datetime, notification_id: UUID) -> str:
 
 def decode_cursor(cursor: str) -> tuple[datetime, UUID]:
     try:
-        decoded = base64.urlsafe_b64decode(cursor.encode()).decode()
+        padded = cursor + "=" * (-len(cursor) % 4)
+        decoded = base64.b64decode(padded.encode("ascii"), altchars=b"-_", validate=True).decode()
         timestamp, notification_id = decoded.split("|", 1)
 
-        return datetime.fromisoformat(timestamp), UUID(notification_id)
+        created_at = datetime.fromisoformat(timestamp)
+        if created_at.tzinfo is None or created_at.utcoffset() is None:
+            raise ValueError("Cursor timestamp must include a timezone")
+        return created_at, UUID(notification_id)
 
     except (ValueError, TypeError):
-        raise HTTPException(status_code=400, detail="Invalid cursor")
+        raise HTTPException(status_code=400, detail={
+            "error": {"code": "invalid_cursor", "message": "Invalid cursor", "details": {}},
+        })
 
 
 @router.get("", response_model=NotificationListResponse)
 async def list_notifications(
     unread: bool = False,
     cursor: str | None = None,
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=20, ge=1, le=50),
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
@@ -75,9 +82,12 @@ async def list_notifications(
     has_more = len(rows) > limit
     rows = rows[:limit]
 
-    profiles = await get_user_profiles(
-        [str(row.actor_id) for row in rows]
-    )
+    try:
+        profiles = await get_user_profiles(
+            [str(row.actor_id) for row in rows]
+        )
+    except (httpx.HTTPError, ValueError, KeyError, TypeError):
+        raise HTTPException(status_code=503, detail="Unable to retrieve notification actor details")
 
     items = []
 
@@ -144,7 +154,7 @@ async def mark_notification_read(
         select(Notification).where(
             Notification.id == notification_id,
             Notification.recipient_id == current_user["id"],
-        )
+        ).with_for_update()
     )
 
     notification = result.scalar_one_or_none()

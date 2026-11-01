@@ -18,6 +18,35 @@ USER = uuid4()
 THREAD = uuid4()
 
 
+class HeartbeatClock:
+    """Advance heartbeat deadlines on the server loop without real-time races."""
+
+    def __init__(self):
+        self.now = 0.0
+        self.waits = asyncio.Queue()
+
+    async def sleep(self, delay):
+        wake = asyncio.get_running_loop().create_future()
+        self.waits.put_nowait((self.now + delay, wake))
+        await wake
+
+    async def tick(self, delayed_by=0):
+        # This timeout only guards a broken test; it does not drive the heartbeat.
+        async with asyncio.timeout(2):
+            deadline, wake = await self.waits.get()
+        self.now = deadline + delayed_by
+        wake.set_result(None)
+        await asyncio.sleep(0)
+
+
+@pytest.fixture
+def heartbeat_clock(monkeypatch):
+    clock = HeartbeatClock()
+    monkeypatch.setattr(rt, 'monotonic', lambda: clock.now)
+    monkeypatch.setattr(rt, 'sleep', clock.sleep)
+    return clock
+
+
 @pytest.fixture
 def setup(monkeypatch):
     manager = ConnectionManager()
@@ -167,28 +196,69 @@ def test_subscribe_unsubscribe_and_delivery(setup):
     assert not manager.rooms
 
 
-def test_heartbeat_timeout(setup, monkeypatch):
-    monkeypatch.setattr(rt, 'HEARTBEAT_INTERVAL', 0.01)
-    monkeypatch.setattr(rt, 'PONG_TIMEOUT', 0.025)
+def test_heartbeat_timeout(setup, heartbeat_clock):
     client, token, *_ = setup
     with client.websocket_connect('/ws') as ws:
         login(ws, token)
+        client.portal.call(heartbeat_clock.tick)
+        assert heartbeat_clock.now == 30
         assert ws.receive_json() == {'type': 'ping'}
+        # Client pings receive a pong but do not answer the server heartbeat.
+        ws.send_json({'type': 'ping'})
+        assert ws.receive_json() == {'type': 'pong'}
+        client.portal.call(heartbeat_clock.tick)
+        assert heartbeat_clock.now == 60
         with pytest.raises(WebSocketDisconnect) as exc:
-            while True:
-                ws.receive_json()
+            ws.receive_json()
         assert exc.value.code == 1001
+        assert exc.value.reason == 'heartbeat_timeout'
 
 
-def test_heartbeat_pong(setup, monkeypatch):
-    monkeypatch.setattr(rt, 'HEARTBEAT_INTERVAL', 0.01)
-    monkeypatch.setattr(rt, 'PONG_TIMEOUT', 0.06)
+def test_heartbeat_pong(setup, heartbeat_clock):
     client, token, *_ = setup
     with client.websocket_connect('/ws') as ws:
         login(ws, token)
         for _ in range(8):
+            client.portal.call(heartbeat_clock.tick)
             assert ws.receive_json() == {'type': 'ping'}
             ws.send_json({'type': 'pong'})
+            # Ensure the server processed the pong before advancing time again.
+            ws.send_json({'type': 'ping'})
+            assert ws.receive_json() == {'type': 'pong'}
+        assert heartbeat_clock.now == 240
+
+
+def test_heartbeat_delayed_wakeup_closes_without_sending_stale_ping(setup, heartbeat_clock):
+    client, token, *_ = setup
+    with client.websocket_connect('/ws') as ws:
+        login(ws, token)
+        # Reproduce a scheduler delay that skips the initial ping deadline.
+        client.portal.call(heartbeat_clock.tick, 60)
+        with pytest.raises(WebSocketDisconnect) as exc:
+            ws.receive_json()
+        assert exc.value.code == 1001
+        assert exc.value.reason == 'heartbeat_timeout'
+
+
+def test_heartbeat_pong_deadline_between_ping_intervals(setup, heartbeat_clock):
+    client, token, *_ = setup
+    with client.websocket_connect('/ws') as ws:
+        login(ws, token)
+        client.portal.call(heartbeat_clock.tick)
+        assert ws.receive_json() == {'type': 'ping'}
+        client.portal.call(setattr, heartbeat_clock, 'now', 40)
+        ws.send_json({'type': 'pong'})
+        ws.send_json({'type': 'ping'})
+        assert ws.receive_json() == {'type': 'pong'}
+        for expected_time in (60, 90):
+            client.portal.call(heartbeat_clock.tick)
+            assert heartbeat_clock.now == expected_time
+            assert ws.receive_json() == {'type': 'ping'}
+        client.portal.call(heartbeat_clock.tick)
+        assert heartbeat_clock.now == 100
+        with pytest.raises(WebSocketDisconnect) as exc:
+            ws.receive_json()
+        assert exc.value.code == 1001
 
 
 @pytest.mark.parametrize('payload', ['not json', '[]', '{"type":"subscribe","thread_id":"invalid"}'])
@@ -360,16 +430,18 @@ def test_rate_limits_are_per_socket(setup):
         assert second.receive_json() == {'type': 'pong'}
 
 
-def test_heartbeat_cleans_up_without_client_disconnect(setup, monkeypatch):
-    monkeypatch.setattr(rt, 'HEARTBEAT_INTERVAL', 0.01)
-    monkeypatch.setattr(rt, 'PONG_TIMEOUT', 0.025)
+def test_heartbeat_cleans_up_without_client_disconnect(setup, heartbeat_clock):
     client, token, manager, *_ = setup
     with client.websocket_connect('/ws') as ws:
         login(ws, token)
         ws.send_json({'type': 'subscribe', 'thread_id': str(THREAD)})
+        ws.send_json({'type': 'ping'})
+        assert ws.receive_json() == {'type': 'pong'}
+        client.portal.call(heartbeat_clock.tick)
+        assert ws.receive_json() == {'type': 'ping'}
+        client.portal.call(heartbeat_clock.tick)
         with pytest.raises(WebSocketDisconnect) as exc:
-            while True:
-                ws.receive_json()
+            ws.receive_json()
         assert exc.value.code == 1001
 
         async def wait_for_cleanup():

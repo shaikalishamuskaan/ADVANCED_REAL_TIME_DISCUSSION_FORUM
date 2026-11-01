@@ -1,4 +1,5 @@
 import asyncio
+from asyncio import sleep
 from collections import deque
 from time import monotonic
 from typing import Literal
@@ -103,7 +104,7 @@ async def websocket_endpoint(websocket: WebSocket):
             while True:
                 # Wake at the pong deadline even when it falls between pings.
                 deadline = min(next_ping, last_pong + PONG_TIMEOUT)
-                await asyncio.sleep(max(0, deadline - monotonic()))
+                await sleep(max(0, deadline - monotonic()))
                 now = monotonic()
                 if now - last_pong >= PONG_TIMEOUT:
                     await websocket.close(code=1001, reason="heartbeat_timeout")

@@ -10,6 +10,9 @@ from app.api.routers.notifications import router as notifications_router
 from app.api.routers.realtime import router as realtime_router
 from app.realtime.workers.pubsub_listener import listen_to_redis
 from app.realtime.workers.identity_consumer import consume_identity_forever
+from app.notify.workers.outbox_relay import run_outbox_relay
+from app.notify.workers.cleanup import run_cleanup_forever
+from app.core.errors import install_error_handlers
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -29,10 +32,12 @@ async def lifespan(app: FastAPI):
 
     pubsub_task = asyncio.create_task(listen_to_redis())
     identity_task = asyncio.create_task(consume_identity_forever())
+    relay_task = asyncio.create_task(run_outbox_relay())
+    cleanup_task = asyncio.create_task(run_cleanup_forever())
     try:
         yield
     finally:
-        tasks = [consumer_task, pubsub_task, identity_task]
+        tasks = [consumer_task, pubsub_task, identity_task, relay_task, cleanup_task]
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
@@ -46,6 +51,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+install_error_handlers(app)
 app.include_router(notifications_router)
 app.include_router(realtime_router)
 
