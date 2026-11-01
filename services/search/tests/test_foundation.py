@@ -17,7 +17,11 @@ async def test_health_endpoint():
     assert response.json() == {"status": "healthy", "service": "search"}
 
 
-def test_settings_use_search_service_env_and_existing_jwt_defaults():
+def test_settings_use_search_service_env_and_existing_jwt_defaults(monkeypatch):
+    # _env_file=None skips dotenv files, but process environment still wins.
+    # Isolate the defaults check from Docker's intentional runtime overrides.
+    for name in ("JWT_ALGORITHM", "JWT_ISSUER", "JWT_AUDIENCE", "REDIS_URL"):
+        monkeypatch.delenv(name, raising=False)
     settings = Settings(_env_file=None, DATABASE_URL="postgresql+asyncpg://test:test@localhost/search_db")
     assert SERVICE_ROOT.name == "search"
     assert settings.JWT_ALGORITHM == "RS256"

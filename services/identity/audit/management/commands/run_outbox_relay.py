@@ -16,10 +16,17 @@ logger = logging.getLogger(__name__)
 
 INITIAL_BACKOFF_SECONDS = 1
 MAX_BACKOFF_SECONDS = 30
+LOCK_RETRY_SECONDS = 5
 
 
 class Command(BaseCommand):
     help = "Run the Identity transactional Outbox Relay."
+
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--wait-for-lock", action="store_true",
+            help="Stand by until the active relay releases its advisory lock.",
+        )
 
     def handle(self, *args, **options):
         relay = OutboxRelay()
@@ -34,6 +41,12 @@ class Command(BaseCommand):
 
         try:
             lock_acquired = acquire_relay_lock()
+
+            if not lock_acquired and options.get("wait_for_lock"):
+                self.stdout.write("Another Identity relay is active; standing by for its advisory lock.")
+                while not lock_acquired:
+                    time.sleep(LOCK_RETRY_SECONDS)
+                    lock_acquired = acquire_relay_lock()
 
             if not lock_acquired:
                 self.stdout.write(

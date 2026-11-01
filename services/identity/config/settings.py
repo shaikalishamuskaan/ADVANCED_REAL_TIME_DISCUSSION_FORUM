@@ -114,9 +114,11 @@ if not SECRET_KEY:
     raise RuntimeError("DJANGO_SECRET_KEY must be configured in the root .env file.")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv("DJANGO_DEBUG", "true").lower() in {"true", "1", "yes"}
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+ALLOWED_HOSTS = [host.strip() for host in os.getenv(
+    "DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1"
+).split(",") if host.strip()]
 
 
 # Application definition
@@ -187,8 +189,8 @@ DATABASES = {
         "NAME": "identity_db",
         "USER": os.getenv("POSTGRES_USER", "forum_dev"),
         "PASSWORD": os.getenv("POSTGRES_PASSWORD", ""),
-        "HOST": "localhost",
-        "PORT": "5433",
+        "HOST": os.getenv("POSTGRES_HOST", "localhost"),
+        "PORT": os.getenv("POSTGRES_PORT", "5433"),
     }
 }
 

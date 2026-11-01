@@ -7,3 +7,4 @@ django-cors-headers
 redis
 python-dotenv
 bcrypt
+uvicorn[standard]
