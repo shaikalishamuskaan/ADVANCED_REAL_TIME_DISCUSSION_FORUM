@@ -374,7 +374,8 @@ Redis is shared infrastructure. Each service uses its own key prefix and never w
 | Key pattern | Type | Owner | TTL | Purpose |
 |---|---|---|---|---|
 | `id:rl:{scope}:{key}` | counter | Identity | window | Rate limits for auth endpoints |
-| `ds:rl:{scope}:{user_id}` | counter | Discussion | window | Rate limits for writes and search |
+| `ds:rl:{scope}:{user_id}` | counter | Discussion | window | Rate limits for Discussion endpoints |
+| `se:rl:search:{user_id}` | counter | Search | 60 s | Search rate limit, 30 requests per user per minute |
 | `ds:user_status:{user_id}` | JSON | Discussion | 30 s | Cached `{role, status, username}` from Identity |
 | `ds:author:{user_id}` | JSON | Discussion | 60 s | Cached author snippet for display |
 | `ds:thread:{thread_id}` | JSON | Discussion | 60 s | Thread detail cache |
