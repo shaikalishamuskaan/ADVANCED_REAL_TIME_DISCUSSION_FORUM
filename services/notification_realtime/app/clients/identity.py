@@ -6,6 +6,7 @@ import httpx
 from pydantic import BaseModel, Field
 
 from app.core.config import get_settings
+from app.core.observability import correlation_headers
 
 USERNAME_CACHE_TTL_SECONDS = 60
 USERNAME_CACHE_MAX_ENTRIES = 1024
@@ -49,6 +50,7 @@ async def resolve_usernames(usernames: list[str]) -> dict[str, dict]:
 
     headers = {
         "X-Service-Key": settings.IDENTITY_SERVICE_KEY,
+        **correlation_headers(),
     }
 
     async with httpx.AsyncClient(timeout=3.0) as client:
@@ -85,7 +87,7 @@ async def fetch_user_status(user_id: str) -> dict:
     async with httpx.AsyncClient(timeout=3.0) as client:
         response = await client.get(
             f"{settings.IDENTITY_BASE_URL}/internal/users/{user_id}/status",
-            headers={"X-Service-Key": settings.IDENTITY_SERVICE_KEY},
+            headers={"X-Service-Key": settings.IDENTITY_SERVICE_KEY, **correlation_headers()},
         )
         response.raise_for_status()
         return response.json()

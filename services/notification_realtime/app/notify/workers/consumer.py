@@ -107,7 +107,8 @@ async def handle_entry(redis, message_id: str, fields: dict):
 
         await redis.xack(STREAM_NAME, GROUP_NAME, message_id)
 
-        logger.info("Successfully processed message %s", message_id)
+        logger.info("stream.processed", extra={"event_id": envelope.get("event_id") if isinstance(envelope, dict) else None,
+                    "message_id": message_id, "stream": STREAM_NAME, "consumer": GROUP_NAME})
 
     except Exception as exc:
         logger.exception("Failed to process message %s", message_id)

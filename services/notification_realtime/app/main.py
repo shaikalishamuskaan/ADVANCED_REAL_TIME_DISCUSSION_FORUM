@@ -3,6 +3,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from app.core.observability import install_logging
 
 from app.core.redis import get_redis_client, close_redis_client
 from app.notify.workers.consumer import consume_forever
@@ -14,7 +15,6 @@ from app.notify.workers.outbox_relay import run_outbox_relay
 from app.notify.workers.cleanup import run_cleanup_forever
 from app.core.errors import install_error_handlers
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -50,6 +50,7 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+install_logging(app)
 
 install_error_handlers(app)
 app.include_router(notifications_router)

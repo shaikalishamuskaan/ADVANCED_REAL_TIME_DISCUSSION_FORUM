@@ -77,6 +77,9 @@ Compose waits for health checks and completed migration jobs using its
 
 ## Inspect and update
 
+For structured request/worker logs, request-ID tracing, log levels and rotation,
+see the [logging guide](../../forum_logging/README.md).
+
 ```powershell
 docker compose --env-file .env.docker -f compose.yaml -f compose.apps.yaml ps -a
 docker compose --env-file .env.docker -f compose.yaml -f compose.apps.yaml logs --tail 50 identity discussion notification-realtime search
@@ -129,9 +132,11 @@ directly and does not need this wrapper for management commands.
 
 ## Deployment verification
 
-The deployed images passed **134 Identity**, **185 Discussion**, **189 Notification
+The initial deployment images passed **134 Identity**, **185 Discussion**, **189 Notification
 & Realtime**, and **100 Search** tests inside Docker, including opt-in integration
 checks. The frontend production build passed inside its Node build stage.
+For subsequent logging changes and their expanded test counts, see the logging
+guide linked above.
 
 HTTP checks through port 8080 verified existing moderator/admin sign-in, refresh,
 profiles, role restrictions, activity, discussions, notifications, unread counts,

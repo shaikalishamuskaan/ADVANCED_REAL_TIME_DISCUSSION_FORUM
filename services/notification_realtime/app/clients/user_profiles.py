@@ -1,6 +1,7 @@
 import httpx
 
 from app.core.config import get_settings
+from app.core.observability import correlation_headers
 from app.schemas.notification import NotificationActor
 
 
@@ -9,7 +10,7 @@ async def get_user_profiles(user_ids: list[str]) -> dict[str, dict]:
         return {}
 
     settings = get_settings()
-    headers = {"X-Service-Key": settings.IDENTITY_SERVICE_KEY}
+    headers = {"X-Service-Key": settings.IDENTITY_SERVICE_KEY, **correlation_headers()}
 
     profiles = {}
 

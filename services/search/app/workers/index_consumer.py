@@ -46,10 +46,13 @@ class SearchConsumer:
             raw = field(fields, "envelope")
             if not raw:
                 raise ValueError("Stream entry has no envelope")
+            envelope = json.loads(raw)
             async with self.session_factory() as session:
                 async with session.begin():
-                    await process_event(session, json.loads(raw), stream)
+                    await process_event(session, envelope, stream)
             await self.redis.xack(stream, GROUP, message_id)
+            logger.info("stream.processed", extra={"event_id": envelope.get("event_id") if isinstance(envelope, dict) else None,
+                        "message_id": message_id, "stream": stream, "consumer": GROUP})
         except Exception as exc:
             logger.exception("Search failed to process entry %s on %s", message_id, stream)
             pending = await self.redis.xpending_range(stream, GROUP, min=message_id, max=message_id, count=1)
@@ -61,6 +64,8 @@ class SearchConsumer:
                     "error": str(exc)[:1000], "attempts": str(attempts),
                 })
                 await self.redis.xack(stream, GROUP, message_id)
+                logger.error("stream.dead_lettered", extra={"message_id": message_id,
+                             "stream": stream, "consumer": GROUP, "attempts": attempts})
 
     async def run_once(self):
         for stream in STREAMS:

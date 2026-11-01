@@ -163,6 +163,8 @@ class AuditEventConsumer:
             "Processed and acknowledged event %s (Redis message %s).",
             envelope["event_id"],
             message_id,
+            extra={"event_id": envelope["event_id"], "message_id": message_id,
+                   "stream": DISCUSSION_STREAM, "consumer": CONSUMER_GROUP},
         )
 
     def reclaim_pending_messages(self):

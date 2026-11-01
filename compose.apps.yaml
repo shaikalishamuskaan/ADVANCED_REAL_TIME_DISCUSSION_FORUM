@@ -1,6 +1,13 @@
 # Use with compose.yaml and the generated, ignored .env.docker file.
 # Existing PostgreSQL/Redis services and named volumes remain in compose.yaml.
+x-log-settings: &log-settings
+  driver: local
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 x-python-environment: &python-environment
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
   POSTGRES_USER: ${POSTGRES_USER:?Run infrastructure/docker/prepare_env.py first}
   POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run infrastructure/docker/prepare_env.py first}
   POSTGRES_HOST: postgres
@@ -11,6 +18,7 @@ x-python-environment: &python-environment
   JWT_AUDIENCE: ${JWT_AUDIENCE:-forum}
 
 x-identity: &identity
+  logging: *log-settings
   image: forum-identity:local
   build:
     context: .
@@ -34,6 +42,7 @@ x-identity: &identity
     - jwt_public
 
 x-discussion: &discussion
+  logging: *log-settings
   image: forum-discussion:local
   build:
     context: .
@@ -50,6 +59,7 @@ x-discussion: &discussion
     - jwt_public
 
 x-notification: &notification
+  logging: *log-settings
   image: forum-notification-realtime:local
   build:
     context: .
@@ -65,6 +75,7 @@ x-notification: &notification
     - jwt_public
 
 x-search: &search
+  logging: *log-settings
   image: forum-search:local
   build:
     context: .
@@ -176,6 +187,7 @@ services:
         condition: service_healthy
 
   frontend:
+    logging: *log-settings
     image: forum-frontend:local
     build:
       context: .

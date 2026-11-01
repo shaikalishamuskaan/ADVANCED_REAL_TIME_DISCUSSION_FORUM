@@ -123,7 +123,7 @@ class ConnectionManager:
         )
         for result in results:
             if isinstance(result, Exception):
-                logger.warning("Disabled socket close failed: %s", result)
+                logger.warning("Disabled socket close failed: %s", type(result).__name__)
 
     async def publish_to_room(self, channel: str, message: dict):
         """Send a Redis Pub/Sub message to all sockets in the matching room."""
@@ -142,7 +142,7 @@ class ConnectionManager:
 
         for socket, result in zip(sockets, results):
             if isinstance(result, Exception):
-                logger.warning("WebSocket delivery failed: %s", result)
+                logger.warning("WebSocket delivery failed: %s", type(result).__name__)
                 await self.disconnect(socket)
 
     async def connection_count(self, user_id: UUID) -> int:

@@ -6,6 +6,7 @@ RUN pip install --no-cache-dir -r requirements.txt \
     && useradd --uid 10001 --create-home app
 COPY --chown=app:app services/identity/ ./
 COPY infrastructure/docker/runtime.py infrastructure/docker/healthcheck.py /app/docker/
+COPY forum_logging/ /app/forum_logging/
 USER app
 EXPOSE 8000
 HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=6 CMD ["python", "/app/docker/healthcheck.py"]

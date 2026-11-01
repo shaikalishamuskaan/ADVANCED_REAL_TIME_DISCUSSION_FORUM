@@ -2,6 +2,7 @@ import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from app.core.observability import install_logging
 
 from app.core.redis import get_redis_client
 from app.outbox.relay import run_outbox_relay
@@ -47,6 +48,7 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+install_logging(app)
 
 
 @app.get("/health")

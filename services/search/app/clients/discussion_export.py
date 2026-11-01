@@ -2,6 +2,7 @@ from typing import Annotated, Literal
 from uuid import UUID
 
 import httpx
+from app.core.observability import correlation_headers
 from pydantic import AwareDatetime, BaseModel, Field
 
 
@@ -48,7 +49,7 @@ class DiscussionExportClient:
                 params["cursor"] = cursor
             response = await self.client.get(
                 "/internal/forum/export", params=params,
-                headers={"X-Service-Key": self.service_key},
+                headers={"X-Service-Key": self.service_key, **correlation_headers()},
             )
             response.raise_for_status()
             page = ExportPage.model_validate(response.json())

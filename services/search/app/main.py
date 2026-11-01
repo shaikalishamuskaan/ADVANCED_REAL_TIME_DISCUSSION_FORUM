@@ -2,6 +2,7 @@ import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from app.core.observability import install_logging
 from sqlalchemy import text
 
 from app.core.database import engine
@@ -31,6 +32,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Search Service", version="1.0.0", lifespan=lifespan)
+install_logging(app)
 install_error_handlers(app)
 app.include_router(search_router)
 

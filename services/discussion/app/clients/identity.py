@@ -1,6 +1,7 @@
 import httpx
 
 from app.core.config import get_settings
+from app.core.observability import correlation_headers
 
 
 async def fetch_user_status(user_id: str) -> dict:
@@ -13,6 +14,7 @@ async def fetch_user_status(user_id: str) -> dict:
 
     headers = {
         "X-Service-Key": settings.IDENTITY_SERVICE_KEY,
+        **correlation_headers(),
     }
 
     try:
@@ -49,6 +51,7 @@ async def fetch_user_profiles(user_ids: list[str]) -> list[dict]:
     url = f"{settings.IDENTITY_BASE_URL}/internal/users/batch"
     headers = {
         "X-Service-Key": settings.IDENTITY_SERVICE_KEY,
+        **correlation_headers(),
     }
 
     try:

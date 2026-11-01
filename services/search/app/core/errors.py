@@ -1,3 +1,4 @@
+import logging
 import httpx
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -36,6 +37,9 @@ def install_error_handlers(app: FastAPI):
         return error_response(400, "validation_error", first["msg"], {"field": field})
 
     async def dependency_error(request: Request, exc: Exception):
+        logging.getLogger(__name__).error(
+            "dependency.unavailable", exc_info=(type(exc), exc, exc.__traceback__),
+        )
         # Keep database URLs, service keys, and upstream response bodies private.
         return error_response(503, "dependency_unavailable", "A required service is unavailable")
 

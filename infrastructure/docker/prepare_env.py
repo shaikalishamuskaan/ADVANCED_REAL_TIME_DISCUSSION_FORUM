@@ -28,6 +28,7 @@ values.update({
     "NOTIFY_SERVICE_KEY": service_keys["notify"],
     "SEARCH_SERVICE_KEY": export_key,
     "JWT_ISSUER": source.get("JWT_ISSUER", "identity"),
+    "LOG_LEVEL": source.get("LOG_LEVEL", "INFO"),
     "JWT_AUDIENCE": source.get("JWT_AUDIENCE", "forum"),
     "ACCESS_TOKEN_TTL_SECONDS": source.get("ACCESS_TOKEN_TTL_SECONDS", "900"),
     "REFRESH_TOKEN_TTL_DAYS": source.get("REFRESH_TOKEN_TTL_DAYS", "7"),
