@@ -6,6 +6,11 @@ volume. This setup is for local development/testing, not a public Internet deplo
 
 ## Start
 
+For a **fresh clone with no local configuration or Python environment**, use the
+[repository quick start](../../README.md#first-run-after-cloning). It runs first-run
+setup inside the Identity image and generates matching development secrets/keys.
+The preparation command below is for an already configured host checkout.
+
 Run from the repository root with Docker Desktop running:
 
 ```powershell

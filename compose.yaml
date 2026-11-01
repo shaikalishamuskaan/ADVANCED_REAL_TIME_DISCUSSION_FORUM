@@ -2,13 +2,13 @@
 services:
   postgres:
     image: postgres:17-alpine
-    container_name: forum-postgres
+    container_name: ${POSTGRES_CONTAINER_NAME:-forum-postgres}
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-forum_dev}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-forum_dev_local_only}
       POSTGRES_DB: identity_db
     ports:
-      - "5433:5432"
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./infrastructure/postgres/init:/docker-entrypoint-initdb.d:ro
@@ -22,10 +22,10 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: forum-redis
+    container_name: ${REDIS_CONTAINER_NAME:-forum-redis}
     command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - "6380:6379"
+      - "${REDIS_HOST_PORT:-6380}:6379"
     volumes:
       - redis_data:/data
     healthcheck:
