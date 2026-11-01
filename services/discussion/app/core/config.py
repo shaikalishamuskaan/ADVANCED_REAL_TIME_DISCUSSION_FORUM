@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     IDENTITY_BASE_URL: str = "http://localhost:8000"
     IDENTITY_SERVICE_KEY: str
 
-    JWT_PUBLIC_KEY_PATH: str = "keys/jwt_public.pem"
+    JWT_PUBLIC_KEY_PATH: str = "../identity/keys/jwt-public.pem"
 
     JWT_ISSUER: str = "identity"
     JWT_AUDIENCE: str = "forum"

@@ -52,7 +52,7 @@ def verify_access_token(token: str) -> AuthenticatedUser:
                     "aud",
                     "exp",
                     "iat",
-                    "jti",
+                    "sid",
                 ]
             },
         )

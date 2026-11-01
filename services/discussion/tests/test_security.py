@@ -59,7 +59,7 @@ def create_token(private_key, **overrides):
         "aud": "forum",
         "iat": now,
         "exp": now + timedelta(minutes=15),
-        "jti": str(uuid4()),
+        "sid": str(uuid4()),
     }
 
     payload.update(overrides)
@@ -78,6 +78,16 @@ def test_valid_access_token(rsa_keys):
 
     assert user.username == "test_user"
     assert user.role == "member"
+
+
+def test_refresh_style_jti_does_not_replace_required_access_session_claim(rsa_keys):
+    now = datetime.now(timezone.utc)
+    token = jwt.encode({"sub": str(uuid4()), "username": "test_user", "role": "member",
+                        "iss": "identity", "aud": "forum", "iat": now,
+                        "exp": now + timedelta(minutes=15), "jti": str(uuid4())}, rsa_keys, algorithm="RS256")
+    with pytest.raises(HTTPException) as error:
+        security.verify_access_token(token)
+    assert error.value.status_code == 401
 
 
 def test_expired_token_is_rejected(rsa_keys):
@@ -126,7 +136,7 @@ def test_missing_required_claim_is_rejected(rsa_keys):
         "aud": "forum",
         "iat": now,
         "exp": now + timedelta(minutes=15),
-        "jti": str(uuid4()),
+        "sid": str(uuid4()),
     }
 
     token = jwt.encode(
