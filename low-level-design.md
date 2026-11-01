@@ -644,6 +644,8 @@ Access token claims:
 |---|---|---|---|
 | GET | `/internal/forum/export?cursor=` | Search (rebuild only) | Paginated threads and comments for rebuilding the search index |
 
+Exported thread and comment records include `author_id` and `author_username`. Discussion resolves the usernames through its existing Identity batch client. If complete author profiles cannot be retrieved, export returns 503; Search does not substitute usernames or call Identity during rebuild.
+
 **Reports and moderation**
 
 | Method | Path | Role | Rate limit | Purpose |
@@ -1656,6 +1658,8 @@ The consumer groups entries, checks `PROCESSED_EVENT`, and applies the changes i
 The query builds a parameterized `ILIKE` statement on `title`, `body`, and `tags`, applies the type and tag filters, and returns the newest 20 rows with a cursor. Snippets are taken from the first match in `body`, with 80 characters of context on each side.
 
 Phase 2 adds an embedding column and a second ranking pass. The change is additive, so the upsert key stays the same.
+
+The rebuild command is `python -m app.rebuild --discussion-url <base-url>`, run from `services/search`. Its `SEARCH_SERVICE_KEY` must match Discussion's internal-export service key. Rebuild and live index writes share a PostgreSQL transaction advisory lock. Rebuild replaces the index in one transaction, preserves the processed-event ledger and Redis consumer-group positions, and rolls back if export or validation fails. Readers see the previous committed index until replacement commits.
 
 ### 9.5 Frontend
 

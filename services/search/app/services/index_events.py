@@ -7,6 +7,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import ProcessedEvent, SearchDocument
+from app.services.index_lock import lock_index
 
 DISCUSSION_EVENTS = {"thread.created", "thread.updated", "thread.deleted", "comment.created", "comment.updated", "comment.deleted"}
 CONSUMER = "search"
@@ -82,6 +83,7 @@ async def process_event(session: AsyncSession, envelope: dict, stream: str):
         raise ValueError("Unknown Search event stream")
     if event.producer != producer:
         raise ValueError("Event producer does not match stream")
+    await lock_index(session)
     claim = await session.execute(insert(ProcessedEvent).values(
         event_id=event.event_id, consumer=CONSUMER,
     ).on_conflict_do_nothing(index_elements=["event_id", "consumer"]).returning(ProcessedEvent.event_id))
