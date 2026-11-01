@@ -19,7 +19,7 @@ def lookup(monkeypatch):
         if state['payload'] is not None:
             return httpx.Response(200, json=state['payload'])
         names = json.loads(request.content)['usernames']
-        return httpx.Response(200, json=[state['users'][name.lower()] for name in names if name.lower() in state['users']])
+        return httpx.Response(200, json={'items': [state['users'][name.lower()] for name in names if name.lower() in state['users']]})
     transport = httpx.MockTransport(respond)
     monkeypatch.setattr(identity, 'monotonic', lambda: state['now'])
     monkeypatch.setattr(httpx, 'AsyncClient', lambda **kwargs: real_client(transport=transport, **kwargs))
@@ -133,7 +133,9 @@ async def test_http_failure_does_not_become_cached_miss(lookup):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('payload', [{}, [{'id': 'invalid', 'username': 'Alice'}], [{'id': str(uuid4()), 'username': 'bad-name'}]])
+@pytest.mark.parametrize('payload', [{}, [], {'items': None}, {'items': {}},
+    {'items': [{'id': 'invalid', 'username': 'Alice'}]},
+    {'items': [{'id': str(uuid4()), 'username': 'bad-name'}]}])
 async def test_invalid_response_is_not_cached(lookup, payload):
     user = add_user(lookup, 'Alice')
     lookup['payload'] = payload
@@ -147,7 +149,7 @@ async def test_invalid_response_is_not_cached(lookup, payload):
 @pytest.mark.asyncio
 async def test_validation_is_atomic_before_caching_response(lookup):
     user = add_user(lookup, 'Alice')
-    lookup['payload'] = [user, {'id': 'invalid', 'username': 'Bob'}]
+    lookup['payload'] = {'items': [user, {'id': 'invalid', 'username': 'Bob'}]}
     with pytest.raises(ValueError):
         await identity.resolve_usernames(['alice', 'bob'])
     assert not identity._username_cache
@@ -157,7 +159,7 @@ async def test_validation_is_atomic_before_caching_response(lookup):
 async def test_response_cannot_add_unrequested_names_to_cache(lookup):
     alice = add_user(lookup, 'Alice')
     bob = add_user(lookup, 'Bob')
-    lookup['payload'] = [alice, bob]
+    lookup['payload'] = {'items': [alice, bob]}
     assert await identity.resolve_usernames(['alice']) == {'alice': alice}
     assert 'bob' not in identity._username_cache
 

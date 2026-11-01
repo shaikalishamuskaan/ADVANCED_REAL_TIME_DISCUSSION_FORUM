@@ -3,7 +3,7 @@ from time import monotonic
 from uuid import UUID
 
 import httpx
-from pydantic import BaseModel, Field, TypeAdapter
+from pydantic import BaseModel, Field
 
 from app.core.config import get_settings
 
@@ -17,7 +17,8 @@ class ResolvedUser(BaseModel):
     username: str = Field(pattern=r"^[A-Za-z0-9_]{3,30}$")
 
 
-resolved_users_adapter = TypeAdapter(list[ResolvedUser])
+class ResolvedUsersResponse(BaseModel):
+    items: list[ResolvedUser]
 
 
 async def resolve_usernames(usernames: list[str]) -> dict[str, dict]:
@@ -60,7 +61,7 @@ async def resolve_usernames(usernames: list[str]) -> dict[str, dict]:
 
     # Validate the whole response before storing anything. Failed lookups must
     # remain retryable rather than turning into cached missing users.
-    users = resolved_users_adapter.validate_python(response.json())
+    users = ResolvedUsersResponse.model_validate(response.json()).items
     expires_at = monotonic() + USERNAME_CACHE_TTL_SECONDS
     missing_names = {name.lower() for name in missing}
     for user in users:
