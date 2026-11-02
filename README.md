@@ -19,7 +19,7 @@ one gateway.
 ## Requirements
 
 - Git.
-- Docker Desktop with **Linux containers**, or Docker Engine with Docker Compose v2+.
+- Docker Desktop with **Linux containers**, or Docker Engine with Docker Compose 2.20+.
 - Docker must be running. On Windows, use Docker Desktop's WSL 2 backend.
 - Internet access for the first image/dependency download and enough disk space
   for the images and database volumes. Allow roughly 4 GB of available memory.
@@ -92,6 +92,8 @@ Sign in through the same frontend using the administrator's email. To create a
 moderator, register another member, then use **Members -> Manage -> Role** while
 signed in as administrator. Supported roles are `member`, `moderator`, and `admin`.
 Do not change account roles through raw SQL.
+Service permission caches normally expire within 30 seconds, so a role change
+can take a short time to appear across services.
 
 ## Everyday use
 

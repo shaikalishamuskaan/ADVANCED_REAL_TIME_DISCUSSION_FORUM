@@ -7,6 +7,7 @@ RUN pip install --no-cache-dir -r requirements.lock.txt \
 COPY --chown=app:app services/search/ ./
 COPY infrastructure/docker/runtime.py infrastructure/docker/healthcheck.py /app/docker/
 COPY forum_logging/ /app/forum_logging/
+ENV PYTHONPATH=/app
 USER app
 EXPOSE 8003
 HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=6 CMD ["python", "/app/docker/healthcheck.py"]
