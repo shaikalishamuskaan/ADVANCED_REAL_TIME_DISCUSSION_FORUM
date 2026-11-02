@@ -152,9 +152,16 @@ docker compose --env-file .env.docker -f compose.yaml -f compose.apps.yaml exec 
 ```
 
 Some tests deliberately log simulated Redis failures/outbox alerts. The final
-test summary determines success. The frontend production build checks TypeScript;
-frontend DOM tests can be run using `npm.cmd ci` and `npm.cmd test` from `frontend`
-with a compatible host Node.js version (22.12+).
+test summary determines success. The frontend production build checks TypeScript.
+To run frontend DOM tests without installing Node on your computer:
+
+```text
+docker build --target build -t forum-frontend-tests:local -f frontend/Dockerfile .
+docker run --rm forum-frontend-tests:local npm test
+```
+
+Alternatively, developers with host Node.js 22.12+ can run `npm.cmd ci` and
+`npm.cmd test` from `frontend`.
 
 ## Troubleshooting
 
@@ -203,6 +210,7 @@ keeps names, ports, networks and volumes separate from the original stack.
   remain prerequisites.
 
 Further documentation: [Docker operations](infrastructure/docker/README.md),
+[fresh-clone verification](infrastructure/docker/VERIFICATION.md),
 [Identity tests](services/identity/tests/README.md), [logging](forum_logging/README.md),
 [LLD](low-level-design.md), [HLD](<01-high-level-design .md>), and
 [product requirements](requiments.txt).
