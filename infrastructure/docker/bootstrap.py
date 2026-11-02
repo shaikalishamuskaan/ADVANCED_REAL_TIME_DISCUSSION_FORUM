@@ -3,6 +3,7 @@ import argparse
 import importlib.util
 import json
 import secrets
+import re
 from pathlib import Path
 from urllib.parse import quote
 
@@ -26,15 +27,29 @@ def write_missing(path, values):
     path.chmod(0o600)
 
 
-def bootstrap(root=ROOT):
+def bootstrap(root=ROOT, *, project_name=None, frontend_port=None, postgres_port=None, redis_port=None):
     env = root / ".env"
     key_dir = root / "services/identity/keys"
     private_path, public_path = key_dir / "jwt-private.pem", key_dir / "jwt-public.pem"
+    overrides = {name: str(value) for name, value in {
+        "COMPOSE_PROJECT_NAME": project_name, "FRONTEND_HOST_PORT": frontend_port,
+        "POSTGRES_HOST_PORT": postgres_port, "REDIS_HOST_PORT": redis_port,
+    }.items() if value is not None}
+    if project_name is not None and not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", project_name):
+        raise ValueError("Project name must contain lowercase letters, digits, underscores or hyphens.")
+    for name, value in overrides.items():
+        if name.endswith("_PORT") and not 1 <= int(value) <= 65535:
+            raise ValueError(f"Invalid port for {name}")
+    if env.exists() and overrides:
+        existing = dotenv_values(env)
+        if any(existing.get(name) != value for name, value in overrides.items()):
+            raise ValueError("Setup options differ from existing .env. Existing instance was preserved; use a separate checkout for a new instance.")
     if not env.exists():
         if private_path.exists() or public_path.exists():
             raise ValueError("Existing JWT keys found without .env. Restore the matching configuration; no files changed.")
         service_keys = {name: secrets.token_urlsafe(32) for name in ("discussion", "notify", "realtime")}
         root_values = {
+            "COMPOSE_PROJECT_NAME": "forum-" + secrets.token_hex(6),
             "APP_ENV": "development", "LOG_LEVEL": "INFO", "POSTGRES_USER": "forum_dev",
             "POSTGRES_PASSWORD": secrets.token_urlsafe(32), "DJANGO_SECRET_KEY": secrets.token_urlsafe(48),
             "RECOVERY_CODE_HMAC_KEY": secrets.token_urlsafe(48), "SERVICE_API_KEYS": json.dumps(service_keys),
@@ -45,6 +60,7 @@ def bootstrap(root=ROOT):
             "REDIS_URL": "redis://localhost:6380/0", "OUTBOX_RELAY_INTERVAL_MS": "200",
             "OUTBOX_BATCH_SIZE": "100", "OUTBOX_RETENTION_DAYS": "7",
         }
+        root_values.update(overrides)
         private = rsa.generate_private_key(public_exponent=65537, key_size=2048)
         key_dir.mkdir(parents=True, exist_ok=True)
         key_dir.chmod(0o700)
@@ -93,6 +109,10 @@ def bootstrap(root=ROOT):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     module.prepare(root)
+    if source.get("COMPOSE_PROJECT_NAME"):
+        print(f"Compose project: {source['COMPOSE_PROJECT_NAME']}. Keep .env and .env.docker with its database volumes.")
+    else:
+        print("Existing configuration has no COMPOSE_PROJECT_NAME; Compose will use its existing directory/project name. Existing volumes require their original password.")
     print("Development configuration and matching JWT keys are ready. Existing configuration was preserved.")
     print("Prepared Git-ignored .env.docker. No passwords, tokens, recovery codes or key contents were printed.")
 
@@ -100,8 +120,13 @@ def bootstrap(root=ROOT):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=ROOT)
+    parser.add_argument("--project-name", help="New instance only: unique Compose project name")
+    parser.add_argument("--frontend-port", type=int, help="New instance only: frontend host port (default 8080)")
+    parser.add_argument("--postgres-port", type=int, help="New instance only: PostgreSQL host port (default 5433)")
+    parser.add_argument("--redis-port", type=int, help="New instance only: Redis host port (default 6380)")
     options = parser.parse_args()
     try:
-        bootstrap(options.root.resolve())
+        bootstrap(options.root.resolve(), project_name=options.project_name, frontend_port=options.frontend_port,
+                  postgres_port=options.postgres_port, redis_port=options.redis_port)
     except (ValueError, OSError, KeyError) as error:
         raise SystemExit(str(error)) from None

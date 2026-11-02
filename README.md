@@ -68,6 +68,14 @@ local environment files. It does not print these values or create default users.
 Repeated setup preserves existing settings and keys. Do not copy `.env.example`
 over a generated `.env`: the example contains placeholders, not working secrets.
 
+Each new bootstrap saves a unique `COMPOSE_PROJECT_NAME` in `.env` and
+`.env.docker`. Compose uses it for this checkout's network, containers and volumes.
+Two folders with the same repository name therefore do not accidentally share a
+database. Keep using `--env-file .env.docker` on every Compose command. Do not
+change the saved project name to connect an existing instance to different data.
+Bootstrap creates service configuration automatically; you do not need to edit
+individual service `.env` files for Docker.
+
 Compose initializes all four databases and runs Django/Alembic migrations before
 starting the APIs. Four migration containers showing **Exited (0)** are expected.
 
@@ -160,6 +168,13 @@ docker build --target build -t forum-frontend-tests:local -f frontend/Dockerfile
 docker run --rm forum-frontend-tests:local npm test
 ```
 
+To check bootstrap's configuration generation and preservation without host Python
+(PowerShell, from the repository root):
+
+```powershell
+docker run --rm --entrypoint python --mount "type=bind,source=$($PWD.Path),target=/workspace" forum-identity:local -m unittest discover -s /workspace/infrastructure/docker/tests -v
+```
+
 Alternatively, developers with host Node.js 22.12+ can run `npm.cmd ci` and
 `npm.cmd test` from `frontend`.
 
@@ -172,27 +187,73 @@ Alternatively, developers with host Node.js 22.12+ can run `npm.cmd ci` and
 | A port/container name is already allocated | Stop the conflicting local stack, or use the custom settings below |
 | Images cannot download | Check Internet access, proxy settings and Docker registry access; retry the build |
 | Existing configuration has missing/mismatched keys | Restore the matching key pair; setup deliberately does not rotate existing keys |
-| Database authentication fails with old volumes | Restore the `.env` credentials used to initialize those volumes; do not generate new passwords for an existing database |
+| PostgreSQL is unhealthy / database credential check failed | Its TCP password check failed. An existing volume retains its original password even when the container environment changes. Restore the matching configuration; see below. |
 | UI is reachable but API calls fail | Check `ps -a` and logs for the relevant service and migration job |
 | Changes do not appear | Rebuild containers after pulling/editing source, then reload the page |
 | Session/refresh fails | Use the same localhost URL consistently; inspect Origin/proxy settings and Identity logs |
 
-For a second checkout on the same machine, append non-secret overrides to its
-generated root `.env`, for example:
+### Existing database password mismatch
 
-```dotenv
-FRONTEND_HOST_PORT=18080
-POSTGRES_HOST_PORT=15433
-REDIS_HOST_PORT=16380
-POSTGRES_CONTAINER_NAME=forum-second-postgres
-REDIS_CONTAINER_NAME=forum-second-redis
+PostgreSQL initialization runs only when its data volume is empty. Changing
+`POSTGRES_PASSWORD` in a container does **not** change an existing database user's
+password. Earlier versions used the repository folder name as the Compose project
+and fixed container names. A second clone with the same folder name could reuse
+the original volume while bootstrap generated a new password. All migration jobs
+then failed, although `pg_isready` reported healthy. The health check now executes
+an authenticated SQL query over the container network before migrations start.
+
+To recover existing data, restore the original matching `.env` and JWT keys from
+your own backup, rerun bootstrap to regenerate `.env.docker`, and start the same
+Compose project. Existing configuration without a saved project name keeps the
+existing project/volume selection so bootstrap does not silently abandon its data.
+Do not paste passwords in commands, change a database password blindly, or use
+`docker compose down -v` to resolve this error. If the original configuration is
+unavailable, keep the volume and arrange a database recovery separately.
+
+### Second instance or clean development reset, preserving existing data
+
+A safe fresh start uses a **new checkout with new volumes**, leaving the original
+checkout, configuration and database volumes intact. If you only need to restart
+or update, use the everyday commands above instead.
+
+In a parent directory, run the following PowerShell commands. The explicit ports
+allow this instance to run alongside the first one; choose other unused ports if
+these are occupied. These bootstrap options apply only before `.env` exists:
+
+```powershell
+git clone https://github.com/shaikalishamuskaan/ADVANCED_REAL_TIME_DISCUSSION_FORUM.git forum-fresh
+cd forum-fresh
+docker build -t forum-identity:local -f services/identity/Dockerfile .
+docker run --rm --entrypoint python --mount "type=bind,source=$($PWD.Path),target=/workspace" forum-identity:local /workspace/infrastructure/docker/bootstrap.py --frontend-port 18080 --postgres-port 15433 --redis-port 16380
+docker compose --env-file .env.docker -f compose.yaml -f compose.apps.yaml up -d --build --wait
 ```
 
-Run bootstrap again, then add `-p forum-second` to **every** Compose command for
-that checkout (immediately after `docker compose`). Open localhost:18080. This
-keeps names, ports, networks and volumes separate from the original stack.
+Open **http://localhost:18080** and register a new account. The saved random project
+name isolates this installation automatically; no additional `-p` is necessary.
+Switch back by stopping this stack, returning to the original checkout, and
+starting its stack. Nothing above deletes data. Do not remove volumes until you
+have explicitly identified them, backed up the data, and decided to discard it.
+Avoid global Docker prune commands during evaluation.
 
 ## Repository and security notes
+
+Clean-install verification on 2 November 2026 used a separate source-only checkout,
+fresh generated secrets/keys, a separate Compose project and unused host ports.
+All four migration jobs exited 0; PostgreSQL, Redis, four APIs and frontend became
+healthy. Registration/login, authenticated profile access, thread creation/read,
+notifications access, authenticated WebSocket subscription and live comment
+delivery, and event-driven Search indexing passed through the frontend gateway.
+Identity's unauthenticated health probe expects HTTP 401; authenticated profile
+access returned 200. The other API health probes and frontend health returned 200.
+Rerunning bootstrap and stopping/starting the stack preserved its configuration,
+accounts and discussion records. Existing installations' volumes were untouched.
+
+Automated results: Identity **136**, Discussion **186**, Notification & Realtime
+**190**, Search **101**, shared logging **11**, bootstrap **9**, and frontend
+**81** tests passed (**714 total**, none skipped). TypeScript and the frontend
+production build passed. Notification tests emit one upstream Starlette/httpx
+deprecation warning. These checks cover real HTTP/WebSocket traffic and frontend
+DOM tests; a rendered browser walkthrough remains a useful final manual check.
 
 - `.env*`, `.env.dev-accounts`, JWT keys, virtual environments, node_modules,
   generated builds and databases are intentionally excluded from Git.

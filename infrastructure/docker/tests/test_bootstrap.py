@@ -34,6 +34,9 @@ class BootstrapTests(unittest.TestCase):
         output = self.setup()
         root = dotenv_values(self.root / '.env')
         docker = dotenv_values(self.root / '.env.docker')
+        self.assertRegex(root['COMPOSE_PROJECT_NAME'], r'^forum-[0-9a-f]{12}$')
+        self.assertEqual(root['COMPOSE_PROJECT_NAME'], docker['COMPOSE_PROJECT_NAME'])
+        self.assertEqual(root['POSTGRES_PASSWORD'], docker['POSTGRES_PASSWORD'])
         keys = json.loads(root['SERVICE_API_KEYS'])
         self.assertEqual(set(keys), {'discussion','notify','realtime'})
         self.assertEqual(len(set(keys.values())),3)
@@ -86,3 +89,31 @@ class BootstrapTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'disagree'):
             self.setup()
         self.assertEqual(before,self.snapshot())
+
+    def test_independent_checkouts_get_distinct_projects_and_credentials(self):
+        self.setup()
+        other = self.root / 'another-checkout'
+        with contextlib.redirect_stdout(io.StringIO()):
+            module.bootstrap(other)
+        first = dotenv_values(self.root / '.env.docker')
+        second = dotenv_values(other / '.env.docker')
+        for name in ('COMPOSE_PROJECT_NAME', 'POSTGRES_PASSWORD', 'DJANGO_SECRET_KEY'):
+            self.assertNotEqual(first[name], second[name])
+
+    def test_new_instance_options_are_persisted_and_cannot_retarget_existing_data(self):
+        options = dict(project_name='forum-mentor-test', frontend_port=18081, postgres_port=15434, redis_port=16381)
+        with contextlib.redirect_stdout(io.StringIO()):
+            module.bootstrap(self.root, **options)
+        config = dotenv_values(self.root / '.env.docker')
+        self.assertEqual(config['COMPOSE_PROJECT_NAME'], 'forum-mentor-test')
+        self.assertEqual(config['FRONTEND_HOST_PORT'], '18081')
+        before = self.snapshot()
+        with self.assertRaisesRegex(ValueError, 'Existing instance was preserved'):
+            module.bootstrap(self.root, project_name='another-project')
+        self.assertEqual(before, self.snapshot())
+
+    def test_invalid_instance_options_write_nothing(self):
+        for options in (dict(project_name='../unsafe'), dict(frontend_port=0), dict(redis_port=65536)):
+            with self.assertRaises(ValueError):
+                module.bootstrap(self.root, **options)
+            self.assertEqual(self.snapshot(), {})
