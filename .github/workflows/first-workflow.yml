@@ -1,0 +1,25 @@
+
+name: My First CI Pipeline
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  first-job:
+    name: My First Job
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Print welcome message
+        run: echo "Hello! My first CI/CD pipeline is running."
+
+      - name: Check Python version
+        run: python --version
